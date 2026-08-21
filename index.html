@@ -1,4 +1,11 @@
 <!DOCTYPE html>
+<!--
+  EG Quincenas — Parte B de sueldos · E.G. Corrugados
+  Aplicación hecha por Raquel Cacavelos.
+
+  En memoria de mi papá, Gerardo, analista programador,
+  que me enseñó que las producciones propias se firman.
+-->
 <html lang="es-AR">
 <head>
 <meta charset="UTF-8">
@@ -182,6 +189,21 @@ tbody tr:last-child td{border-bottom:none}
   .ph4 .comprobante:nth-child(4n){page-break-after:always}
   .comprobante:last-child{page-break-after:auto!important}
 }
+
+/* Firma de autoría, al pie de todas las pantallas */
+footer.firma{
+  max-width:1100px;
+  margin:30px auto 20px;
+  padding:14px 18px 0;
+  border-top:1px solid var(--papel-2);
+  text-align:center;
+  font-size:12px;
+  line-height:1.7;
+  color:var(--tinta-2);
+  opacity:.8;
+}
+footer.firma strong{ color:var(--tinta); font-weight:600; }
+@media print{ footer.firma{display:none} }
 </style>
 </head>
 <body>
@@ -204,7 +226,20 @@ tbody tr:last-child td{border-bottom:none}
 
 <main id="vista"></main>
 
+<footer class="firma">
+  Hecha por <strong>Raquel Cacavelos</strong> · E.G. Corrugados
+</footer>
+
 <script>
+/* ---------------------------------------------------------------
+   EG Quincenas — Raquel Cacavelos.
+
+   Para mi papá, Gerardo, analista programador.
+   Él me enseñó que las producciones propias se firman: que el que
+   hace una cosa pone el nombre abajo y responde por lo que hizo.
+   Esta app la escribí con eso en la cabeza. Va firmada, pa.
+   --------------------------------------------------------------- */
+
 // Datos base de arranque, tomados del Excel PLANILLAS_SUELDOS_RA.xlsx
 // Estos valores son editables desde la pantalla de Ajustes.
 const EMPLEADOS_BASE = [
