@@ -256,7 +256,6 @@ const FACTOR_PRESENTISMO = 0.17;
 
 // ============ MOTOR DE CÁLCULO — Quincenas Parte B ============
 // Reglas confirmadas con EG y verificadas contra el Excel.
-
 function calcularEmpleado(emp, q) {
   // emp: datos base del empleado (valorHora, viatico, sueldoBruto, etc.)
   // q: datos de la quincena para ese empleado
@@ -342,7 +341,6 @@ function num(x){ const n = parseFloat(x); return isNaN(n) ? 0 : n; }
 //  Quincenas Parte B — EG Corrugados
 //  Toda la data se guarda en localStorage del navegador.
 // ============================================================
-
 
 
 const App = (function(){
@@ -527,7 +525,7 @@ const App = (function(){
 
   const TABS=[
     ['inicio','Inicio'],['recibos','Recibos'],['quincena','Quincenas'],['prestamos','Préstamos y vales'],
-    ['resumen','Resumen jefe'],['comprobantes','Comprobantes'],['sac','SAC'],['sacblanco','SAC blanco'],['ajustes','Ajustes']
+    ['resumen','Resumen jefe'],['comprobantes','Comprobantes'],['sac','SAC'],['sacblanco','SAC blanco'],['totales','Totales'],['ajustes','Ajustes']
   ];
   function renderNav(){
     document.getElementById('nav').innerHTML = TABS.map(([id,t])=>
@@ -546,6 +544,7 @@ const App = (function(){
     else if(tab==='comprobantes') v.innerHTML=vistaComprobantes();
     else if(tab==='sac') v.innerHTML=vistaSac();
     else if(tab==='sacblanco') v.innerHTML=vistaSacBlanco();
+    else if(tab==='totales') v.innerHTML=vistaTotales();
     else if(tab==='prestamos') v.innerHTML=vistaPrestamos();
     else if(tab==='ajustes') v.innerHTML=vistaAjustes();
     // Al cambiar de pestaña, subimos arriba. Si es un refresco de la misma pestaña, conservamos el scroll.
@@ -995,6 +994,7 @@ const App = (function(){
       return (r&&r.vac&&r.vac.neto>0)?(parseFloat(r.vac.neto)||0):0;
     }
     let tNegro=0,tDesc=0,tNeto=0,tDebe=0,tBlanco=0;
+    const cajaItems=[];
     const filas=db.empleados.map(e=>{
       const d=p.datos[e.id];
       if(!d) return `<tr><td>${e.apellido}</td><td colspan="5" style="text-align:center;color:#8a7d63">sin cargar</td></tr>`;
@@ -1004,6 +1004,7 @@ const App = (function(){
       const netoVac=netoVacDe(e.id);
       const blanco=(parseFloat(d.sueldoBlanco)||0)+netoVac;
       tNegro+=r.subtotal; tDesc+=desc; tNeto+=r.total; tDebe+=debe; tBlanco+=blanco;
+      cajaItems.push({ nombre:e.apellido, monto:r.total });
       const infoVac=netoVac>0?`<div style="font-size:10.5px;color:var(--tinta-2)" class="no-print">incluye vac ${money0(netoVac)}</div>`:'';
       return `<tr><td>${e.apellido}</td>
         <td>${money0(r.subtotal)}</td>
@@ -1013,8 +1014,25 @@ const App = (function(){
         <td>${blanco?money0(blanco):'<span style="color:#8a7d63">—</span>'}${infoVac}</td></tr>`;
     }).join('');
     const sinCargar=db.empleados.filter(e=>!p.datos[e.id]).map(e=>e.apellido);
-    const avisoFalta = sinCargar.length
-      ? `<div class="aviso no-print">⚠ Falta cargar la liquidación de: <strong>${sinCargar.join(', ')}</strong>. El total todavía no está completo.</div>` : '';
+    // datos incompletos: cargó algo pero falta bruto, neto o días
+    const incompletos=db.empleados.filter(e=>{
+      const d=p.datos[e.id]; if(!d) return false;
+      const faltaBruto=!(parseFloat(d.sueldoBruto)>0);
+      const faltaNeto=!(parseFloat(d.sueldoBlanco)>0);
+      const faltaDias=(d.diasVino===undefined||d.diasVino==='');
+      return faltaBruto||faltaNeto||faltaDias;
+    }).map(e=>{
+      const d=p.datos[e.id]; const faltan=[];
+      if(!(parseFloat(d.sueldoBruto)>0)) faltan.push('bruto');
+      if(!(parseFloat(d.sueldoBlanco)>0)) faltan.push('neto');
+      if(d.diasVino===undefined||d.diasVino==='') faltan.push('días');
+      return `${e.apellido} (falta ${faltan.join(', ')})`;
+    });
+    let avisoFalta='';
+    if(sinCargar.length)
+      avisoFalta += `<div class="aviso no-print">⚠ Falta cargar la liquidación de: <strong>${sinCargar.join(', ')}</strong>. El total todavía no está completo.</div>`;
+    if(incompletos.length)
+      avisoFalta += `<div class="aviso no-print" style="border-color:var(--ambar)">📝 Datos incompletos: <strong>${incompletos.join('; ')}</strong>. Revisá antes de imprimir.</div>`;
     // bloque administración: bruto (solo pantalla, alimenta SAC) + neto (se imprime)
     // Los montos se guardan POR MES en db.sacBlanco[claveMes]["admin:Nombre"], según el mes del período visible.
     const admin=db.admin||[];
@@ -1058,8 +1076,27 @@ const App = (function(){
         <tbody>${filasHist}</tbody></table>
       </div>
     </div>`:'';
+    // Caja del día de pago: efectivo (negro) por quincenal + total. Sin administrativos.
+    const totalCaja=cajaItems.reduce((s,x)=>s+(x.monto||0),0);
+    const filasCaja=cajaItems.map(x=>
+      `<tr><td>${x.nombre}</td><td style="text-align:right;font-weight:600">${money0(x.monto)}</td></tr>`).join('');
+    const cajaBloque=cajaItems.length?`
+    <details class="card no-print" style="border:1.5px solid var(--verde)">
+      <summary style="padding:14px 16px;cursor:pointer;font-weight:600;font-size:15px;list-style:none;display:flex;align-items:center;gap:10px">
+        💵 Caja del día de pago — efectivo a juntar: <span style="color:var(--verde)">${money0(totalCaja)}</span>
+        <span style="margin-left:auto;font-size:12px;color:var(--tinta-2);font-weight:400">tocá para ver el detalle</span>
+      </summary>
+      <div class="card-cuerpo" style="padding:0;border-top:1px solid var(--linea)">
+        <table><thead><tr><th>Empleado</th><th style="text-align:right">Efectivo (Parte B)</th></tr></thead>
+        <tbody>${filasCaja}
+          <tr class="t-total"><td>Total a juntar</td><td style="text-align:right;font-size:16px">${money0(totalCaja)}</td></tr>
+        </tbody></table>
+        <div style="padding:8px 14px;font-size:11.5px;color:var(--tinta-2)">Es el negro (Parte B) de los quincenales después de descuentos. No incluye administrativos ni sueldos en blanco.</div>
+      </div>
+    </details>`:'';
     return `
     ${histBloque}
+    ${cajaBloque}
     ${avisoFalta}
     <div class="kpis">
       <div class="kpi"><div class="k">Total negro</div><div class="v">${money0(tNegro)}</div></div>
@@ -1296,16 +1333,29 @@ const App = (function(){
       <option value="1" ${sacCuota===1?'selected':''}>1ª cuota (ene–jun)</option>
       <option value="2" ${sacCuota===2?'selected':''}>2ª cuota (jul–dic)</option></select>`;
 
-    // tabla resumen de todos
+    // tabla resumen de todos, con chequeo de meses faltantes
+    function mesesFaltantes(dEmp){
+      return mesesCuota.filter(m=>{
+        const q=(dEmp&&dEmp[m])||{}; return ((q[1]||0)+(q[2]||0))===0;
+      });
+    }
     const filas=db.empleados.map(e=>{
       const {mejor,mejorMes}=mejorMesDe(datos[e.id],mesesCuota);
       const sac=mejor/2;
-      return `<tr><td>${e.apellido}</td>
+      const faltan=mesesFaltantes(datos[e.id]);
+      const avisoMeses = faltan.length
+        ? `<div style="font-size:10.5px;color:var(--ambar);margin-top:2px" class="no-print">faltan: ${faltan.map(m=>nombreMesNum(m).slice(0,3)).join(', ')}</div>`
+        : '';
+      return `<tr><td>${e.apellido}${avisoMeses}</td>
         <td style="color:#8a7d63">${mejorMes?nombreMesNum(mejorMes):'—'}</td>
         <td>${money0(mejor)}</td>
         <td style="font-weight:600">${money0(sac)}</td>
         <td class="no-print"><button class="btn sec chico" onclick="App.verSacEmp('${e.id}')">Ver comprobante</button></td></tr>`;
     }).join('');
+    // aviso general si a alguien le falta algún mes
+    const algunoIncompleto=db.empleados.some(e=>mesesFaltantes(datos[e.id]).length>0);
+    const avisoSac = algunoIncompleto
+      ? `<div class="aviso no-print" style="border-color:var(--ambar)">📝 Hay empleados con meses sin cargar en este semestre (marcados en ámbar). Si falta cargar un mes, el "mejor mes" podría cambiar cuando lo completes.</div>` : '';
 
     let compEmp='';
     if(sacEmpSel){
@@ -1319,6 +1369,7 @@ const App = (function(){
         <div style="margin-left:auto;display:flex;gap:8px" class="no-print">${selCuota} ${selAnio}</div></div>
       <div class="card-cuerpo">
         <div class="aviso">Por cada quincena se suma <strong>horas extras + presentismo</strong> (y hs extras de vacaciones si las hubo). Se toma el mejor mes del semestre y se divide por dos. La 1ª cuota mira enero–junio; la 2ª, julio–diciembre.</div>
+        ${avisoSac}
         <table>
           <thead><tr><th>Empleado</th><th>Mejor mes</th><th>Base (hs+pres.)</th><th>SAC (÷2)</th><th class="no-print"></th></tr></thead>
           <tbody>${filas}</tbody>
@@ -1732,6 +1783,165 @@ const App = (function(){
     return { vale, prestamo, items };
   }
 
+  // ---------- Pantalla: Totales (panel anual + buscador) ----------
+  let totAnio=null, busEmp=null, busPeriodo=null;
+  function vistaTotales(){
+    const anios=[...new Set(Object.keys(db.periodos).map(k=>k.split('-')[0]))].sort();
+    if(anios.length===0){
+      return `<div class="card"><div class="card-cuerpo"><div class="vacio"><div class="ico">📊</div>
+        Todavía no hay quincenas cargadas.<br>Acá vas a ver los totales del año y un buscador cuando cargues datos.</div></div></div>`;
+    }
+    if(!totAnio) totAnio=anios[anios.length-1];
+    const A=totAnio;
+    const selAnio=`<select onchange="App.setTotAnio(this.value)" style="width:auto">${anios.map(a=>`<option ${a===A?'selected':''}>${a}</option>`).join('')}</select>`;
+
+    // --- Panel anual: por quincenal (negro bruto = subtotal Parte B antes de descuentos; blanco = suma netos) ---
+    // SAC: mejor mes de cada semestre /2 (1ª cuota ene-jun, 2ª jul-dic), sumo las dos cuotas del año.
+    function sacAnualQuincenal(empId){
+      const e=emp(empId);
+      // armar datos[mes][q]=baseSac para el año
+      const dd={};
+      Object.keys(db.periodos).forEach(clave=>{
+        const [anio,mes,q]=clave.split('-');
+        if(anio!==A) return;
+        const p=db.periodos[clave]; const d=p.datos[empId]; if(!d) return;
+        const r=calcularEmpleado(e,Object.assign({},d,{diasLaborables:p.diasLaborables}));
+        dd[parseInt(mes)]=dd[parseInt(mes)]||{}; dd[parseInt(mes)][parseInt(q)]=r.baseSac;
+      });
+      const c1=mejorMesDe(dd,[1,2,3,4,5,6]).mejor/2;
+      const c2=mejorMesDe(dd,[7,8,9,10,11,12]).mejor/2;
+      return c1+c2;
+    }
+    // SAC blanco anual (para todos): mejor bruto de cada semestre /2, sumo las dos cuotas.
+    function sacBlancoAnual(claveEmp,tipo){
+      function mejorSem(meses){
+        let mejor=0;
+        meses.forEach(m=>{
+          const clave=`${A}-${String(m).padStart(2,'0')}`;
+          let bruto=0;
+          if(tipo==='quincenal'){
+            [1,2].forEach(q=>{ const pk=`${clave}-${q}`; const p=db.periodos[pk]; if(p&&p.datos[claveEmp]) bruto+=parseFloat(p.datos[claveEmp].sueldoBruto)||0; });
+          } else {
+            const reg=(db.sacBlanco[clave]||{})[claveEmp]; if(reg) bruto+=parseFloat(reg.bruto)||0;
+          }
+          // sumar prorrateo de vacaciones del mes si hubiera
+          const rv=(db.sacBlanco[clave]||{})[claveEmp];
+          if(rv&&rv.vac&&rv.vac.monto>0&&rv.vac.desde&&rv.vac.hasta){
+            const tot=diasTotales(rv.vac.desde,rv.vac.hasta);
+            if(tot>0){ const dias=diasEnMes(rv.vac.desde,rv.vac.hasta,parseInt(A),m); if(dias>0) bruto+=(parseFloat(rv.vac.monto)||0)*(dias/tot); }
+          }
+          if(bruto>mejor) mejor=bruto;
+        });
+        return mejor;
+      }
+      return mejorSem([1,2,3,4,5,6])/2 + mejorSem([7,8,9,10,11,12])/2;
+    }
+
+    // Filas quincenales
+    let tN=0,tB=0,tS=0;
+    const filasQ=db.empleados.map(e=>{
+      let negro=0, blanco=0;
+      Object.keys(db.periodos).forEach(clave=>{
+        const [anio]=clave.split('-'); if(anio!==A) return;
+        const p=db.periodos[clave]; const d=p.datos[e.id]; if(!d) return;
+        const r=calcularEmpleado(e,Object.assign({},d,{diasLaborables:p.diasLaborables}));
+        negro+=r.subtotal;  // Parte B ANTES de descuentos (bruto negro)
+        blanco+=(parseFloat(d.sueldoBlanco)||0);
+      });
+      // sumar netos de recibos de vacaciones del año
+      Object.keys(db.sacBlanco).forEach(k=>{
+        if(k[0]==='_'||k.split('-')[0]!==A) return;
+        const rv=(db.sacBlanco[k]||{})[e.id];
+        if(rv&&rv.vac&&rv.vac.neto>0) blanco+=parseFloat(rv.vac.neto)||0;
+      });
+      const sac=sacBlancoAnual(e.id,'quincenal');
+      const sacNegro=sacAnualQuincenal(e.id);
+      tN+=negro; tB+=blanco; tS+=sac;
+      return `<tr><td>${e.apellido}</td>
+        <td style="text-align:right">${negro?money0(negro):'—'}</td>
+        <td style="text-align:right">${blanco?money0(blanco):'—'}</td>
+        <td style="text-align:right">${sacNegro?money0(sacNegro):'—'}</td>
+        <td style="text-align:right">${sac?money0(sac):'—'}</td></tr>`;
+    }).join('');
+
+    // Filas administrativos (solo blanco y SAC blanco; no tienen Parte B en la app)
+    const filasA=(db.admin||[]).map(a=>{
+      const claveEmp='admin:'+a.nombre;
+      let blanco=0;
+      Object.keys(db.sacBlanco).forEach(k=>{
+        if(k[0]==='_'||k.split('-')[0]!==A) return;
+        const reg=(db.sacBlanco[k]||{})[claveEmp];
+        if(reg){ blanco+=parseFloat(reg.neto)||0; if(reg.vac&&reg.vac.neto>0) blanco+=parseFloat(reg.vac.neto)||0; }
+      });
+      const sac=a.gerente?0:sacBlancoAnual(claveEmp,'admin');
+      return `<tr><td>${a.nombre}${a.gerente?' <span style="font-size:10px;color:#8a7d63">(gerente)</span>':''}</td>
+        <td style="text-align:right;color:#bbb">—</td>
+        <td style="text-align:right">${blanco?money0(blanco):'—'}</td>
+        <td style="text-align:right;color:#bbb">—</td>
+        <td style="text-align:right">${sac?money0(sac):'—'}</td></tr>`;
+    }).join('');
+
+    // --- Buscador ---
+    const clavesPer=Object.keys(db.periodos).sort().reverse();
+    const optsEmp=db.empleados.map(e=>`<option value="${e.id}" ${busEmp===e.id?'selected':''}>${e.apellido}</option>`).join('');
+    const optsPer=clavesPer.map(k=>`<option value="${k}" ${busPeriodo===k?'selected':''}>${db.periodos[k].etiqueta}</option>`).join('');
+    let resultadoBusqueda='';
+    if(busEmp && busPeriodo && db.periodos[busPeriodo] && db.periodos[busPeriodo].datos[busEmp]){
+      const e=emp(busEmp); const p=db.periodos[busPeriodo];
+      const d=Object.assign({},p.datos[busEmp],{diasLaborables:p.diasLaborables});
+      const r=calcularEmpleado(e,d);
+      const desc=r.descuentoVale+r.descuentoPrestamo;
+      resultadoBusqueda=`
+      <div style="margin-top:12px;padding:12px 14px;background:var(--panel-2);border-radius:8px">
+        <div style="font-weight:600;margin-bottom:8px">${e.apellido} — ${p.etiqueta}</div>
+        <table style="font-size:13px">
+          <tr><td>Horas extras</td><td style="text-align:right">${money(r.hsExtrasMonto)}</td></tr>
+          <tr><td>Presentismo</td><td style="text-align:right">${money(r.presentismo)}</td></tr>
+          <tr><td>Viáticos</td><td style="text-align:right">${money(r.viaticos)}</td></tr>
+          <tr><td>Comida</td><td style="text-align:right">${money(r.comida)}</td></tr>
+          ${r.plusMonto?`<tr><td>Plus/Extra</td><td style="text-align:right">${money(r.plusMonto)}</td></tr>`:''}
+          ${r.totalVacaciones?`<tr><td>Vacaciones</td><td style="text-align:right">${money(r.totalVacaciones)}</td></tr>`:''}
+          <tr style="border-top:1px solid var(--linea)"><td>Subtotal (negro)</td><td style="text-align:right">${money(r.subtotal)}</td></tr>
+          ${desc?`<tr><td style="color:var(--rojo)">Descontado</td><td style="text-align:right;color:var(--rojo)">-${money(desc)}</td></tr>`:''}
+          <tr style="font-weight:700;border-top:1px solid var(--tinta)"><td>Cobró (efectivo)</td><td style="text-align:right">${money(r.total)}</td></tr>
+          <tr><td>Sueldo blanco (banco)</td><td style="text-align:right">${money(parseFloat(p.datos[busEmp].sueldoBlanco)||0)}</td></tr>
+        </table>
+      </div>`;
+    } else if(busEmp && busPeriodo){
+      resultadoBusqueda=`<div style="margin-top:12px;color:#8a7d63;font-size:13px">No hay datos cargados de ese empleado en esa quincena.</div>`;
+    }
+
+    return `
+    <div class="card">
+      <div class="card-cab"><h2>Totales del año</h2>
+        <div style="margin-left:auto" class="no-print">${selAnio}</div></div>
+      <div class="card-cuerpo" style="padding:0">
+        <div class="aviso" style="margin:10px 12px">Acumulado del año. El <strong>negro</strong> de los quincenales es la Parte B <strong>antes de descuentos</strong>. Los administrativos solo tienen blanco y SAC blanco (no cargan Parte B acá).</div>
+        <table>
+          <thead><tr><th>Empleado</th><th style="text-align:right">Negro (Parte B)</th><th style="text-align:right">Blanco (banco)</th><th style="text-align:right">SAC negro</th><th style="text-align:right">SAC blanco</th></tr></thead>
+          <tbody>
+            ${filasQ}
+            <tr class="t-total"><td>Subtotal quincenales</td><td style="text-align:right">${money0(tN)}</td><td style="text-align:right">${money0(tB)}</td><td></td><td></td></tr>
+            ${filasA?`<tr><td colspan="5" style="padding-top:10px;font-weight:600;color:var(--tinta-2);font-size:12px">ADMINISTRACIÓN</td></tr>${filasA}`:''}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card no-print">
+      <div class="card-cab"><h2 style="font-size:15px">Buscador — ¿cuánto cobró?</h2></div>
+      <div class="card-cuerpo">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <select onchange="App.setBusEmp(this.value)" style="width:auto"><option value="">Elegí empleado…</option>${optsEmp}</select>
+          <select onchange="App.setBusPeriodo(this.value)" style="width:auto"><option value="">Elegí quincena…</option>${optsPer}</select>
+        </div>
+        ${resultadoBusqueda}
+      </div>
+    </div>`;
+  }
+  function setTotAnio(v){ totAnio=v; irA('totales'); }
+  function setBusEmp(v){ busEmp=v||null; irA('totales'); }
+  function setBusPeriodo(v){ busPeriodo=v||null; irA('totales'); }
+
   // ---------- Pantalla: Ajustes ----------
   function vistaAjustes(){
     const filas=db.empleados.map(e=>`
@@ -1835,10 +2045,10 @@ const App = (function(){
            nuevoItem, editItem, borrarItem, imprimirVale,
            setSacAnio, setSacCuota, verSacEmp,
            setAdminMes, setAjusteSac, vacSb, setSbAnio, setSbCuota,
+           setTotAnio, setBusEmp, setBusPeriodo,
            nuevoAdmin, borrarAdmin };
 })();
 document.addEventListener('DOMContentLoaded', App.init);
-
 </script>
 </body>
 </html>
