@@ -1,22 +1,22 @@
 /**
- * EG Quincenas — backend de datos en Google Sheets.
+ * EG Quincenas — backend de datos en Google Sheets (con BLINDAJE).
  *
- * Guarda TODO el estado de la app (el objeto "db": períodos, empleados,
- * préstamos, SAC blanco, administrativos, etc.) como un bloque de texto JSON
- * en una sola celda de una hoja llamada "Datos".
+ * Guarda TODO el estado de la app (el objeto "db") como un bloque de texto JSON
+ * en la celda A1 de la hoja "Datos".
  *
- * - doGet  -> devuelve el JSON guardado (o vacío la primera vez).
- * - doPost -> recibe el JSON completo y lo sobrescribe.
- *
- * Mismo patrón que las otras apps de EG (Pedidos, Cotizaciones): un /exec
- * publicado como aplicación web con acceso "Cualquier persona".
+ * BLINDAJE (agregado 25/8): antes de sobrescribir A1, si ya había contenido,
+ * guarda una copia en la hoja "Respaldos" con la fecha y hora. Mantiene solo
+ * las ultimas 300 copias (MAX_BK). Así, si algo se pisa, hay copias para volver atrás
+ * sin depender del historial de versiones de Google.
  *
  * En memoria de mi papá, Gerardo, analista programador,
  * que me enseñó a firmar lo que uno crea.
  */
 
-const HOJA = "Datos";   // nombre de la hoja (pestaña) dentro de la planilla
-const CELDA = "A1";     // celda donde vive todo el JSON
+const HOJA = "Datos";        // hoja con el dato vivo (A1)
+const CELDA = "A1";
+const HOJA_BK = "Respaldos"; // hoja donde se guardan las copias
+const MAX_BK = 300;          // cuántas copias conservar
 
 function hoja_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -25,12 +25,40 @@ function hoja_() {
   return sh;
 }
 
+function hojaBk_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(HOJA_BK);
+  if (!sh) {
+    sh = ss.insertSheet(HOJA_BK);
+    sh.getRange("A1").setValue("Fecha y hora");
+    sh.getRange("B1").setValue("Copia de los datos (antes de sobrescribir)");
+    sh.getRange("B:B").setNumberFormat("@"); // texto, no interpretar el JSON
+  }
+  return sh;
+}
+
+// Guarda una copia del contenido anterior antes de pisarlo.
+function respaldar_(contenidoAnterior) {
+  // Solo respaldamos si había algo con sustancia (evita respaldar vacíos).
+  if (!contenidoAnterior || String(contenidoAnterior).trim().length < 2) return;
+  const sh = hojaBk_();
+  // Insertamos la copia nueva arriba (fila 2), debajo del encabezado.
+  sh.insertRowAfter(1);
+  sh.getRange("A2").setValue(new Date());
+  sh.getRange("B2").setNumberFormat("@");
+  sh.getRange("B2").setValue(String(contenidoAnterior));
+  // Recortamos: dejamos encabezado (fila 1) + MAX_BK copias.
+  const ultima = sh.getLastRow();
+  const sobran = ultima - (1 + MAX_BK);
+  if (sobran > 0) {
+    sh.deleteRows(2 + MAX_BK, sobran);
+  }
+}
+
 function doGet(e) {
   try {
     const sh = hoja_();
-    const cell = sh.getRange(CELDA);
-    const txt = cell.getValue();
-    // Si está vacío, devolvemos db nulo para que la app arranque de cero.
+    const txt = sh.getRange(CELDA).getValue();
     const data = (txt && String(txt).trim().length) ? String(txt) : "";
     return ContentService
       .createTextOutput(JSON.stringify({ ok: true, db: data }))
@@ -48,10 +76,15 @@ function doPost(e) {
     if (payload.action === "save" && typeof payload.db === "string") {
       const sh = hoja_();
       const cell = sh.getRange(CELDA);
-      cell.setNumberFormat("@");   // forzar texto: no interpretar el JSON
+
+      // BLINDAJE: copiar lo que había ANTES de pisarlo.
+      // Si el contenido no cambio, no gastamos una copia en vano.
+      const anterior = cell.getValue();
+      if (String(anterior) !== payload.db) respaldar_(anterior);
+
+      cell.setNumberFormat("@"); // forzar texto
       cell.setValue(payload.db);
-      // Guardamos también una marca de tiempo en B1 para control.
-      sh.getRange("B1").setValue(new Date());
+      sh.getRange("B1").setValue(new Date()); // marca de tiempo del último guardado
       return ContentService
         .createTextOutput(JSON.stringify({ ok: true, message: "Datos guardados" }))
         .setMimeType(ContentService.MimeType.JSON);
