@@ -361,6 +361,9 @@ const App = (function(){
   let mesAdminRecibos = null;
   let sacAnio = null, sacCuota = null, sacEmpSel = null;
   let syncEstado = 'local'; // 'local' | 'sincronizando' | 'ok' | 'error'
+  // Solo se escribe en la planilla si ANTES se pudo leer. Sin esto, una lectura
+  // fallida arrancaba con la memoria vacia y pisaba los datos de la nube.
+  let nubeLeida = false;
 
   // ---------- Persistencia ----------
   function cargar(){
@@ -401,7 +404,7 @@ const App = (function(){
       local:        {t:'💾 Local',        c:'#8a7d63'},
       sincronizando:{t:'☁ Sincronizando…', c:'#c08a2d'},
       ok:           {t:'☁ Sincronizado',  c:'#3a7d44'},
-      error:        {t:'⚠ Sin conexión',  c:'#b3402f'}
+      error:        {t:"⚠ Sin conexión — no se guarda", c:"#b3402f"}
     };
     const m = map[estado]||map.local;
     b.textContent = m.t; b.style.color = m.c;
@@ -411,6 +414,9 @@ const App = (function(){
   let guardarTimer=null;
   function guardarEnNube(){
     if(!nubeActiva()) return;
+    // Salvaguarda: si la lectura inicial fallo, no sabemos que hay en la planilla.
+    // Escribir aca seria pisar datos buenos con una memoria vacia.
+    if(!nubeLeida){ marcarSync("error"); return; }
     // "debounce": si se guarda varias veces seguidas, manda una sola vez al final.
     if(guardarTimer) clearTimeout(guardarTimer);
     guardarTimer=setTimeout(()=>{
@@ -434,17 +440,24 @@ const App = (function(){
     fetch(URL_SHEET, { method:'GET' })
       .then(r=>r.json())
       .then(j=>{
-        if(j && j.ok && j.db && String(j.db).trim().length){
+        // Si la respuesta no es un ok limpio, es una lectura fallida: no marcamos
+        // nubeLeida, asi guardarEnNube() se niega a escribir y no pisa nada.
+        if(!(j && j.ok)){ marcarSync('error'); if(cb)cb(); return; }
+        if(j.db && String(j.db).trim().length){
           try{
             const dNube = JSON.parse(j.db);
-            if(dNube && typeof dNube==='object'){
-              if(!dNube.sacBlanco) dNube.sacBlanco={};
-              if(!dNube.admin || dNube.admin.length===0) dNube.admin=JSON.parse(JSON.stringify(ADMIN_BASE));
-              db = dNube;
-              localStorage.setItem(LS, JSON.stringify(db));
-            }
-          }catch(e){}
+            if(!dNube || typeof dNube!=='object') throw new Error('formato invalido');
+            if(!dNube.sacBlanco) dNube.sacBlanco={};
+            if(!dNube.admin || dNube.admin.length===0) dNube.admin=JSON.parse(JSON.stringify(ADMIN_BASE));
+            db = dNube;
+            localStorage.setItem(LS, JSON.stringify(db));
+          }catch(e){
+            // El texto de A1 esta corrupto o incompleto. Mejor no tocar nada.
+            marcarSync('error'); if(cb)cb(); return;
+          }
         }
+        // Lectura confirmada (con datos, o planilla realmente vacia): ya se puede escribir.
+        nubeLeida = true;
         marcarSync('ok');
         if(cb)cb();
       })
@@ -505,6 +518,18 @@ const App = (function(){
   }
   function arrancar(){
     // si no hay ningún período, crear uno por defecto (quincena actual)
+    // Si la nube esta configurada pero no se pudo leer, NO inventamos un periodo
+    // por defecto: ese fue exactamente el camino que vacio la planilla.
+    if(nubeActiva() && !nubeLeida){
+      document.getElementById('vista').innerHTML =
+        '<div class="card"><div class="card-cuerpo"><div class="aviso">' +
+        '<strong>No se pudieron leer los datos de la planilla.</strong><br><br>' +
+        'La app quedó en <strong>modo solo lectura</strong>: no va a guardar nada, ' +
+        'para no pisar los datos que ya están guardados.<br><br>' +
+        'Revisá la conexión a internet y volvé a cargar la página (F5).' +
+        '</div></div></div>';
+      return;
+    }
     if(Object.keys(db.periodos).length===0){
       const hoy=new Date();
       const q = hoy.getDate()<=15?1:2;
