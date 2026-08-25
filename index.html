@@ -213,7 +213,7 @@ footer.firma strong{ color:var(--tinta); font-weight:600; }
     <div class="hd-logo">EG</div>
     <div>
       <div class="hd-tit">Quincenas · Parte B</div>
-      <div class="hd-sub">EG Corrugados <span id="syncBadge" style="font-size:11px;margin-left:6px;color:#8a7d63">💾 Local</span></div>
+      <div class="hd-sub">EG Corrugados <span id="syncBadge" style="font-size:11px;margin-left:6px;color:#8a7d63">💾 Local</span><span id="espacioBadge" style="font-size:11px"></span></div>
     </div>
     <div class="hd-per">
       <select id="selPeriodo" onchange="App.cambiarPeriodo(this.value)"></select>
@@ -408,6 +408,9 @@ const App = (function(){
     };
     const m = map[estado]||map.local;
     b.textContent = m.t; b.style.color = m.c;
+    // Aviso de espacio discreto, en un span aparte al lado del badge.
+    const se = document.getElementById('espacioBadge');
+    if(se) se.innerHTML = avisoEspacioChico();
   }
 
   // Guarda el db completo en el Sheet (no bloquea la interfaz).
@@ -542,6 +545,38 @@ const App = (function(){
     renderPeriodos(); renderNav(); irA('inicio');
   }
 
+  // ---------- Aviso de límite de espacio (celda de Google Sheets: 50.000 caracteres) ----------
+  const LIMITE_CELDA = 50000;   // máximo de caracteres que aguanta la celda A1
+  const CHARS_POR_QUINCENA = 1700; // estimación de cuánto suma cada quincena nueva
+  function estadoEspacio(){
+    const usado = JSON.stringify(db).length;
+    const libre = Math.max(0, LIMITE_CELDA - usado);
+    const quincenasRestantes = Math.floor(libre / CHARS_POR_QUINCENA);
+    const pct = usado / LIMITE_CELDA;
+    let nivel = 'ok';
+    if(pct >= 0.92) nivel = 'rojo';
+    else if(pct >= 0.80) nivel = 'amarillo';
+    return { usado, libre, quincenasRestantes, pct, nivel };
+  }
+  function avisoEspacioChico(){
+    // Texto discreto junto al badge, solo si ya entró en zona amarilla o roja.
+    const e = estadoEspacio();
+    if(e.nivel === 'ok') return '';
+    const color = e.nivel === 'rojo' ? '#b3402f' : '#c08a2d';
+    return ` · <span style="color:${color}">📦 espacio: ~${e.quincenasRestantes} quincenas</span>`;
+  }
+  function avisoEspacioGrande(){
+    // Cartel grande arriba de la vista, solo en zona roja (urgente).
+    const e = estadoEspacio();
+    if(e.nivel !== 'rojo') return '';
+    return `<div class="aviso no-print" style="border-color:#b3402f;background:#fff2ef;margin-bottom:12px">
+      <strong>📦 La planilla se está quedando sin espacio.</strong> Quedan aproximadamente
+      <strong>${e.quincenasRestantes} quincenas</strong> de lugar. Antes de que se llene, hay que
+      ampliar la app para que guarde los datos en varias partes (es un cambio técnico).
+      Avisá para que lo hagan con tiempo — mientras tanto la app sigue funcionando normal.
+    </div>`;
+  }
+
   function renderPeriodos(){
     const sel=document.getElementById('selPeriodo');
     const claves=Object.keys(db.periodos).sort().reverse();
@@ -572,6 +607,12 @@ const App = (function(){
     else if(tab==='totales') v.innerHTML=vistaTotales();
     else if(tab==='prestamos') v.innerHTML=vistaPrestamos();
     else if(tab==='ajustes') v.innerHTML=vistaAjustes();
+    // Aviso grande de espacio (solo en zona roja): se antepone a cualquier pestaña.
+    const ae = avisoEspacioGrande();
+    if(ae) v.innerHTML = ae + v.innerHTML;
+    // Refrescar el aviso chico de espacio junto al badge.
+    const seTab = document.getElementById('espacioBadge');
+    if(seTab) seTab.innerHTML = avisoEspacioChico();
     // Al cambiar de pestaña, subimos arriba. Si es un refresco de la misma pestaña, conservamos el scroll.
     if(cambioDeTab) window.scrollTo(0,0);
     else window.scrollTo(0,scrollPrev);
