@@ -294,6 +294,13 @@ function calcularEmpleado(emp, q) {
   const vinoCompleto = deVacaciones ? true : (diasLab > 0 && diasVino >= diasLab);
 
   const r = { apellido: emp.apellido, especial: !!emp.especial };
+  // Valores base del desarrollo: no intervienen en ningún cálculo, se exponen
+  // para poder controlar en el comprobante cómo se llegó a cada resultado.
+  r.baseSueldoBruto = sueldoBruto;
+  r.baseValorHora   = valorHora;
+  r.baseHsExtras    = hsExtras;
+  r.baseDiasVino    = diasVino;
+  r.baseDiasLab     = diasLab;
 
   if (!emp.especial) {
     // ---- Empleado normal ----
@@ -489,6 +496,14 @@ const App = (function(){
   function money0(n){
     return '$'+ Math.round(Number(n)||0).toLocaleString('es-AR');
   }
+  // Delante de un sustantivo masculino ("mil", "millones", "centavos") se apocopa:
+  // 191.896 es "ciento noventa y UN mil", no "ciento noventa y uno mil".
+  function apocope(s){
+    if(s==='uno') return 'un';
+    if(s.endsWith('veintiuno')) return s.slice(0,-9)+'veintiún';
+    if(s.endsWith('uno')) return s.slice(0,-3)+'un';
+    return s;
+  }
   // Convierte un número entero a palabras en español (para el vale)
   function numeroALetras(n){
     n=Math.round(Number(n)||0);
@@ -512,10 +527,20 @@ const App = (function(){
     const millones=Math.floor(n/1000000);
     const miles=Math.floor((n%1000000)/1000);
     const resto=n%1000;
-    if(millones>0){ palabras+= (millones===1?'un millón':menores1000(millones)+' millones')+' '; }
-    if(miles>0){ palabras+= (miles===1?'mil':menores1000(miles)+' mil')+' '; }
+    if(millones>0){ palabras+= (millones===1?'un millón':apocope(menores1000(millones))+' millones')+' '; }
+    if(miles>0){ palabras+= (miles===1?'mil':apocope(menores1000(miles))+' mil')+' '; }
     if(resto>0){ palabras+= menores1000(resto); }
     return palabras.trim();
+  }
+  // Monto completo en palabras, con centavos si los hubiera, listo para el "En letras".
+  function montoEnLetras(n){
+    const v=Math.abs(Number(n)||0);
+    let ent=Math.floor(v);
+    let cent=Math.round((v-ent)*100);
+    if(cent===100){ ent+=1; cent=0; }
+    let t=numeroALetras(ent);
+    if(cent>0) t+=' con '+apocope(numeroALetras(cent))+(cent===1?' centavo':' centavos');
+    return t.charAt(0).toUpperCase()+t.slice(1);
   }
   function emp(id){ return db.empleados.find(e=>e.id===id); }
   function periodoActual(){ return db.periodos[periodoActivo]; }
@@ -1279,15 +1304,13 @@ const App = (function(){
     // comprobantes de deuda de préstamo: para cada empleado que tuvo cuota descontada esta quincena
     const clavePref = periodoActivo+'|';
     const compDeuda=db.empleados.map(e=>{
-      const items=(db.prestamos[e.id]||[]);
-      const conCuota=items.filter(x=>x.tipo==='prestamo' && x.aplicaciones && x.aplicaciones[clavePref+e.id]>0);
+      const conCuota=(db.prestamos[e.id]||[])
+        .filter(x=>x.tipo==='prestamo' && x.aplicaciones && x.aplicaciones[clavePref+e.id]>0);
       if(conCuota.length===0) return '';
-      return conCuota.map(x=>{
-        const cuota=x.aplicaciones[clavePref+e.id];
-        const saldoNuevo=x.saldo;
-        const deudaAnterior=saldoNuevo+cuota;
-        return comprobanteDeudaHTML(e,x,deudaAnterior,cuota,saldoNuevo,p);
-      }).join('');
+      // Uno solo por empleado. Si tuviera más de un préstamo con cuota, lo que
+      // queda debiendo es la suma de los saldos.
+      const saldoNuevo=conCuota.reduce((s,x)=>s+num(x.saldo),0);
+      return comprobanteDeudaHTML(e,saldoNuevo,p);
     }).join('');
     const seccionDeuda = compDeuda ? `
       <div style="margin:22px 0 12px" class="no-print"><div style="font-size:16px;font-weight:600">Comprobantes de deuda de préstamo</div>
@@ -1313,22 +1336,21 @@ const App = (function(){
     ${seccionDeuda}`;
   }
 
-  function comprobanteDeudaHTML(e,x,deudaAnterior,cuota,saldoNuevo,p){
+  function comprobanteDeudaHTML(e,saldoNuevo,p){
+    const hoy=new Date();
+    const fecha=`${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
+    const et='font-weight:700;display:inline-block;min-width:96px';
+    const val='border-bottom:1px solid #999;padding:0 8px';
     return `
     <div class="comprobante">
-      <div class="comp-cab">
-        <div><div class="comp-emp">EG Corrugados</div><div class="comp-tip">Comprobante de préstamo · saldo actualizado</div></div>
-        <div style="text-align:right"><div class="comp-emp">${e.apellido}</div><div class="comp-tip">${p.etiqueta}</div></div>
+      <div style="text-align:center;font-weight:700;font-size:15px;letter-spacing:.5px;margin-bottom:20px">COMPROBANTE DE PRÉSTAMO</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:18px;font-size:14px">
+        <div>Fecha&nbsp; <span style="border:1px solid var(--tinta);border-radius:4px;padding:5px 14px;font-weight:600;display:inline-block;min-width:112px;text-align:center">${fecha}</span></div>
       </div>
-      <div style="font-size:13px;color:var(--tinta-2);margin-bottom:8px">${x.desc||'Préstamo'}</div>
-      <table class="comp-tabla">
-        <tr><td>Deuda anterior</td><td>${money(deudaAnterior)}</td></tr>
-        <tr class="comp-desc"><td>− Cuota descontada esta quincena</td><td>${money(-cuota)}</td></tr>
-        <tr class="comp-tot"><td>Saldo adeudado</td><td>${money(saldoNuevo)}</td></tr>
-      </table>
-      <div class="comp-firmas" style="justify-content:center">
-        <div class="comp-firma" style="max-width:280px">Firma empleado</div>
-      </div>
+      <div style="margin-bottom:18px;font-size:14px"><span style="${et}">Empleado:</span> <span style="${val}">${e.apellido}</span></div>
+      <div style="margin-bottom:18px;font-size:14px"><span style="${et}">En números:</span> <span style="${val}">${money(saldoNuevo)}</span></div>
+      <div style="margin-bottom:18px;font-size:14px"><span style="${et}">En letras:</span> <span style="${val}">${montoEnLetras(saldoNuevo)}</span></div>
+      <div style="margin-top:44px;font-size:14px"><span style="font-weight:700;margin-right:12px">FIRMA</span><span style="display:inline-block;border-bottom:1px solid var(--tinta);min-width:260px;height:1px;vertical-align:bottom"></span></div>
       <button class="btn sec chico no-print comp-btn" onclick="App.imprimirUno(this)">🖨 Solo este</button>
     </div>`;
   }
@@ -1357,8 +1379,10 @@ const App = (function(){
     if(r.descuentoVale) desc+=compFila('− Vale',-r.descuentoVale,true);
     if(r.descuentoPrestamo) desc+=compFila('− Cuota préstamo',-r.descuentoPrestamo,true);
     // bloque de vacaciones en continuidad (como la planilla)
+    // Si las vacaciones ya se cobraron (total en 0), el bloque no va.
+    const muestraVac = r.deVacaciones && (r.totalVacaciones||0) > 0;
     let vacBloque='';
-    if(r.deVacaciones){
+    if(muestraVac){
       const per = r.vacPeriodo?`<div class="comp-tip">${r.vacPeriodo}</div>`:'';
       vacBloque=`
       <div style="border-top:2px solid var(--tinta);margin-top:16px;padding-top:12px">
@@ -1371,7 +1395,7 @@ const App = (function(){
         </table>
       </div>`;
     }
-    const rotuloTotal = r.deVacaciones?'LIQUIDACIÓN TOTAL':'Total a cobrar';
+    const rotuloTotal = muestraVac?'LIQUIDACIÓN TOTAL':'Total a cobrar';
     return `
     <div class="comprobante">
       <div class="comp-cab">
@@ -1386,6 +1410,13 @@ const App = (function(){
       <table class="comp-tabla" style="margin-top:4px">
         <tr class="comp-tot"><td>${rotuloTotal}</td><td>${money(r.total)}</td></tr>
       </table>
+      <div style="border-top:1px dashed var(--tinta-2);margin-top:12px;padding-top:8px;
+           display:flex;flex-wrap:wrap;gap:3px 18px;font-size:11.5px;color:var(--tinta-2)">
+        <span>Sueldo bruto: <strong style="color:var(--tinta)">${money(r.baseSueldoBruto)}</strong></span>
+        <span>Valor hora: <strong style="color:var(--tinta)">${money(r.baseValorHora)}</strong></span>
+        <span>Hs. extras: <strong style="color:var(--tinta)">${r.baseHsExtras}</strong></span>
+        <span>Días trabajados: <strong style="color:var(--tinta)">${r.baseDiasVino}${r.baseDiasLab?' de '+r.baseDiasLab:''}</strong></span>
+      </div>
       <div class="comp-firmas" style="justify-content:center">
         <div class="comp-firma" style="max-width:280px">Firma empleado</div>
       </div>
