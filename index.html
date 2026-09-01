@@ -164,7 +164,10 @@ tbody tr:last-child td{border-bottom:none}
 .comprobante{background:#fff;border:1px solid var(--linea-fuerte);border-radius:var(--r);
   padding:24px 28px;margin-bottom:16px;position:relative;box-shadow:var(--sombra)}
 .comp-cab{display:flex;justify-content:space-between;align-items:flex-start;
-  border-bottom:2px solid var(--tinta);padding-bottom:12px;margin-bottom:14px}
+  border-bottom:2px solid var(--tinta);padding-bottom:12px;margin-bottom:14px;
+  /* lugar para el botón "Solo este", que va absoluto en esa esquina y tapaba el apellido */
+  padding-right:104px}
+@media (max-width:640px){ .comp-cab{padding-right:96px} }
 .comp-emp{font-size:16px;font-weight:700;color:var(--tinta)}
 .comp-tip{font-size:12px;color:var(--tinta-2);margin-top:2px}
 .comp-tabla{width:100%;font-size:13.5px}
@@ -189,6 +192,8 @@ tbody tr:last-child td{border-bottom:none}
   .comprobante{border:1px solid #333;box-shadow:none;margin:0 0 8px;padding:12px 16px;
     break-inside:avoid;page-break-inside:avoid}
   .comp-firmas{margin-top:16px}
+  /* al imprimir no está el botón, el encabezado usa todo el ancho */
+  .comp-cab{padding-right:0}
   @page{margin:11mm}
   /* Salto de página controlado según "por hoja" */
   .ph1 .comprobante{page-break-after:always}
