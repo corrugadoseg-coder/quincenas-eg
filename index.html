@@ -160,6 +160,22 @@ tbody tr:last-child td{border-bottom:none}
   .hd-per select{max-width:150px}
   .liq-fila .nota{display:none}
 }
+/* ---------- Pantalla única de carga (nueva) ---------- */
+.carga-cols{display:grid;grid-template-columns:1fr 330px;gap:18px;align-items:start}
+@media (max-width:980px){ .carga-cols{grid-template-columns:1fr} }
+.carga-bloque{border:1px solid var(--linea);border-radius:10px;padding:13px 15px;margin-bottom:14px;background:#fff}
+.carga-bloque > h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--tinta-2);margin-bottom:10px;font-weight:700}
+.carga-liq{position:sticky;top:14px}
+.carga-item{border:1px solid var(--linea);border-radius:9px;padding:10px 12px;margin-bottom:10px;background:var(--papel-2)}
+.carga-item .cab{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px;font-weight:600}
+.carga-queda{font-size:12.5px;color:var(--tinta-2)}
+.carga-neto{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  margin-top:10px;padding-top:10px;border-top:1px solid var(--linea);font-size:13.5px}
+.carga-neto.falta{color:var(--tinta-2)}
+.hint-carga{font-size:11.5px;color:var(--tinta-2);margin-top:6px;line-height:1.5}
+.mini{font-size:10.5px;color:var(--tinta-2);font-weight:400}
+@media print{ .carga-liq{position:static} }
 /* ---------- Comprobante ---------- */
 .comprobante{background:#fff;border:1px solid var(--linea-fuerte);border-radius:var(--r);
   padding:24px 28px;margin-bottom:16px;position:relative;box-shadow:var(--sombra)}
@@ -635,7 +651,7 @@ const App = (function(){
   }
 
   const TABS=[
-    ['inicio','Inicio'],['recibos','Recibos'],['quincena','Quincenas'],['prestamos','Préstamos y vales'],
+    ['inicio','Inicio'],['carga','⚡ Carga'],['recibos','Recibos'],['quincena','Quincenas'],['prestamos','Préstamos y vales'],
     ['resumen','Resumen jefe'],['comprobantes','Comprobantes'],['sac','SAC'],['sacblanco','SAC blanco'],['totales','Totales'],['ajustes','Ajustes']
   ];
   function renderNav(){
@@ -649,6 +665,7 @@ const App = (function(){
     tabActiva=tab; renderNav();
     const v=document.getElementById('vista');
     if(tab==='inicio') v.innerHTML=vistaInicio();
+    else if(tab==='carga') vistaCarga();
     else if(tab==='recibos') v.innerHTML=vistaRecibos();
     else if(tab==='quincena') vistaQuincena();
     else if(tab==='resumen') v.innerHTML=vistaResumen();
@@ -885,6 +902,270 @@ const App = (function(){
   }
 
   // ---------- Pantalla: Cargar quincena ----------
+  // ============================================================
+  //  Pantalla única de carga (v1) — REUSA el motor existente.
+  //  No calcula nada por su cuenta: arma el mismo formulario con los
+  //  MISMOS ids de campo que lee leerFicha(), y llama a calc() /
+  //  toggleVac() / calcularEmpleado() tal como están. Valor hora y
+  //  viático viajan ocultos (se editan en Ajustes) para no romper
+  //  leerFicha(), que los espera.
+  // ============================================================
+  function cargaCompleto(d){
+    return !!(d && d.diasVino!==undefined && d.diasVino!=='');
+  }
+  // Saldo del item sin contar lo ya aplicado en ESTA quincena, para poder
+  // recalcular en vivo aunque la ficha ya se haya guardado antes.
+  function saldoBase(x){
+    const clave = periodoActivo+'|'+empActivo;
+    const yaAplicado = (x.aplicaciones && x.aplicaciones[clave]) || 0;
+    return (Number(x.saldo)||0) + yaAplicado;
+  }
+  // Reparte un monto entre los items de un tipo igual que lo hace aplicarA():
+  // en orden, hasta agotar el saldo de cada uno. Así el "queda $X" que se ve
+  // en pantalla es exactamente lo que va a pasar al guardar.
+  function repartoPreview(items, monto){
+    let resto = Number(monto)||0;
+    return items.map(function(x){
+      const base = saldoBase(x);
+      const aplica = Math.max(0, Math.min(resto, base));
+      resto -= aplica;
+      return { item:x, base:base, aplica:aplica, queda: base-aplica };
+    });
+  }
+
+  function vistaCarga(){
+    const v=document.getElementById('vista');
+    const p=periodoActual();
+    if(!p){
+      v.innerHTML='<div class="card"><div class="card-cuerpo"><div class="vacio"><div class="ico">📋</div>'+
+        'No hay ninguna quincena creada todavía.<br>Creá una con el botón "Nueva" de arriba.</div></div></div>';
+      return;
+    }
+    if(!empActivo) empActivo=db.empleados[0].id;
+    v.innerHTML=`
+      <div id="cargaUI">
+        <div class="card">
+          <div class="card-cab">
+            <h2>Carga de quincena</h2>
+            <span class="sub">${p.etiqueta}</span>
+            <div style="margin-left:auto" class="campo">
+              <label>Días laborables</label>
+              <input type="number" value="${p.diasLaborables}" style="width:86px" oninput="App.setDiasLabCarga(this.value)">
+            </div>
+          </div>
+          <div class="card-cuerpo">
+            <div class="chips" id="chipsCarga"></div>
+            <div id="cargaCuerpo"></div>
+          </div>
+        </div>
+      </div>
+      <div id="printCarga" class="ph1 oculto"></div>`;
+    renderChipsCarga();
+    renderCarga();
+  }
+
+  function renderChipsCarga(){
+    const p=periodoActual();
+    const cont=document.getElementById('chipsCarga'); if(!cont) return;
+    cont.innerHTML=db.empleados.map(function(e){
+      const ok=cargaCompleto(p.datos[e.id]);
+      return `<button class="chip ${e.id===empActivo?'on':''} ${ok?'':'pend'}"
+        onclick="App.selEmpCarga('${e.id}')">${ok?'✓':'⚠'} ${e.apellido}</button>`;
+    }).join('');
+  }
+  function selEmpCarga(id){ empActivo=id; renderChipsCarga(); renderCarga(); }
+  function setDiasLabCarga(val){
+    periodoActual().diasLaborables=parseInt(val)||0;
+    guardar(); renderCarga();
+  }
+
+  function renderCarga(){
+    const e=emp(empActivo), p=periodoActual();
+    const d=p.datos[empActivo] || (p._prefill&&p._prefill[empActivo]) || {};
+    const val=function(k,def){ return (d[k]!==undefined && d[k]!=='') ? d[k] : def; };
+    const yaGuardado = !!p.datos[empActivo];
+    const pend=pendientesDe(empActivo);
+    const sugVale = yaGuardado ? val('descuentoVale',0) : (pend.vale||0);
+    const sugPres = yaGuardado ? val('descuentoPrestamo',0) : 0;
+
+    const cont=document.getElementById('cargaCuerpo'); if(!cont) return;
+    cont.innerHTML=`
+    <div class="carga-cols">
+      <div>
+        <input type="hidden" id="f_vh" value="${val('valorHora',e.valorHora)}">
+        <input type="hidden" id="f_vi" value="${val('viatico',e.viatico)}">
+
+        <div class="carga-bloque">
+          <h3>1 · Del recibo oficial</h3>
+          <div class="grid-campos">
+            <div class="campo"><label>Bruto remunerativo</label>
+              <input id="f_sb" type="number" step="0.01" value="${val('sueldoBruto',e.sueldoBruto)}" oninput="App.calcCarga()"></div>
+            <div class="campo"><label>Neto (banco)</label>
+              <input id="f_bl" type="number" step="0.01" value="${val('sueldoBlanco',e.sueldoBlanco||'')}" oninput="App.calcCarga()"></div>
+          </div>
+          <div class="hint-carga">El bruto alimenta el presentismo y el SAC blanco. El neto va al resumen de Eduardo.</div>
+        </div>
+
+        <div class="carga-bloque">
+          <h3>2 · De esta quincena</h3>
+          <div class="grid-campos">
+            <div class="campo"><label>Días que vino <span class="mini">de ${p.diasLaborables}</span></label>
+              <input id="f_dv" type="number" value="${val('diasVino',p.diasLaborables)}" oninput="App.calcCarga()"></div>
+            <div class="campo"><label>Días de comida <span class="mini">normalmente = días que vino</span></label>
+              <input id="f_dc" type="number" value="${val('diasComida', val('diasVino',p.diasLaborables))}" oninput="App.calcCarga()"></div>
+            <div class="campo"><label>Horas extras${e.especial?' <span class="mini">incl. 2 fijas</span>':''}</label>
+              <input id="f_he" type="number" value="${val('hsExtras',e.especial?2:0)}" oninput="App.calcCarga()"></div>
+          </div>
+          <div style="background:var(--papel-2);border-radius:8px;padding:10px 12px;margin-top:12px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;font-size:14px">
+              <input type="checkbox" id="f_vac" ${val('vacaciones',false)?'checked':''} onchange="App.toggleVacCarga()" style="width:16px;height:16px;cursor:pointer">
+              🌴 Está de vacaciones esta quincena
+            </label>
+            <div id="vacCampos" class="${val('vacaciones',false)?'':'oculto'}" style="margin-top:10px">
+              <div class="hint-carga" style="margin-bottom:8px">Cobra el presentismo completo aunque no haya venido todos los días. Hs extras: 1 semana = 2,5 · 2 semanas = 5.</div>
+              <div class="grid-campos">
+                <div class="campo"><label>Período (ej. 10/08 al 16/08)</label>
+                  <input id="f_vacper" value="${val('vacPeriodo','')}" oninput="App.calcCarga()"></div>
+                <div class="campo"><label>Días de vacaciones</label>
+                  <input id="f_vacdias" type="number" value="${val('diasVacaciones','')}" oninput="App.calcCarga()"></div>
+                <div class="campo"><label>Hs extras de vacaciones</label>
+                  <input id="f_vache" type="number" step="0.1" value="${val('hsExtrasVacaciones','')}" oninput="App.calcCarga()"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="carga-bloque">
+          <h3>3 · Vales y préstamos</h3>
+          <input type="hidden" id="f_dvale" value="${sugVale}">
+          <input type="hidden" id="f_dpres" value="${sugPres}">
+          <div id="ccItems"></div>
+          <div class="btn-fila">
+            <button class="btn sec chico" onclick="App.nuevoItem('${empActivo}','vale')">+ Agregar vale</button>
+            <button class="btn sec chico" onclick="App.nuevoItem('${empActivo}','prestamo')">+ Agregar préstamo</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="carga-liq">
+        <div class="carga-bloque" style="margin-bottom:10px">
+          <h3>Liquidación en vivo</h3>
+          <div id="liqBox"></div>
+          <div id="netoBanco"></div>
+        </div>
+        <div class="btn-fila" style="margin-top:0">
+          <button class="btn" onclick="App.guardarCarga()">Guardar</button>
+          <button class="btn sec" onclick="App.imprimirCarga()">🖨 Imprimir comprobantes</button>
+        </div>
+        <div class="hint-carga" style="margin-top:8px">Imprime la quincena y, si esta quincena se descontó cuota o vale, también su comprobante — uno por hoja.</div>
+      </div>
+    </div>`;
+    renderItemsCarga();
+    calcCarga();
+  }
+
+  // Tarjetas de vales y préstamos, con el "queda" calculado igual que al guardar.
+  function renderItemsCarga(){
+    const cont=document.getElementById('ccItems'); if(!cont) return;
+    const items=(db.prestamos[empActivo]||[]).filter(function(x){ return saldoBase(x)>0; });
+    if(items.length===0){
+      cont.innerHTML='<div class="hint-carga">Sin vales ni préstamos pendientes.</div>';
+      return;
+    }
+    const vales=items.filter(function(x){ return x.tipo==='vale'; });
+    const pres =items.filter(function(x){ return x.tipo==='prestamo'; });
+    const elV=document.getElementById('f_dvale'), elP=document.getElementById('f_dpres');
+    const dVale=parseFloat(elV?elV.value:0)||0;
+    const dPres=parseFloat(elP?elP.value:0)||0;
+    const repVale=repartoPreview(vales,dVale);
+    const repPres=repartoPreview(pres,dPres);
+    const sugVale=repVale.reduce(function(s,r){ return s+r.base; },0);
+
+    function tarjetas(rep, tipo, total, sugerido){
+      return rep.map(function(rr,i){
+        const x=rr.item;
+        const campo = (i===0)
+          ? `<input type="number" step="0.01" value="${total}" style="width:118px"
+               oninput="App.setDescuentoCarga('${tipo}',this.value)">`
+          : `<span class="mini">se descuenta en orden, después del anterior</span>`;
+        const sug = (i===0 && sugerido>0)
+          ? `<button class="btn sec chico" onclick="App.setDescuentoCarga('${tipo}',${sugerido},true)">usar ${money0(sugerido)}</button>`
+          : '';
+        return `<div class="carga-item">
+          <div class="cab"><span>${x.tipo==='vale'?'🧾':'💳'} ${x.desc||(x.tipo==='vale'?'Vale':'Préstamo')}</span>
+            <span>debe ${money(rr.base)}</span></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+            <span class="mini">descontar ahora</span> ${campo} ${sug}
+            <span class="carga-queda" style="margin-left:auto">queda <strong>${money(rr.queda)}</strong></span>
+          </div>
+          <div class="btn-fila" style="margin-top:6px">
+            <button class="btn sec chico" onclick="App.borrarItem('${empActivo}','${x.id}')">Eliminar</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    cont.innerHTML = tarjetas(repVale,'vale',dVale,sugVale) + tarjetas(repPres,'prestamo',dPres,0);
+  }
+  function setDescuentoCarga(tipo,val,rerender){
+    const el = document.getElementById(tipo==='vale' ? 'f_dvale' : 'f_dpres');
+    if(!el) return;
+    el.value = val;
+    calcCarga();
+    if(rerender) renderItemsCarga();
+  }
+
+  // Recalcula con el motor de siempre y agrega lo propio de esta pantalla.
+  function calcCarga(){
+    calc();                       // ← motor intacto: pinta #liqBox
+    const q=leerFicha();
+    const nb=document.getElementById('netoBanco');
+    if(nb){
+      const neto=parseFloat(q.sueldoBlanco)||0;
+      nb.innerHTML = neto>0
+        ? `<div class="carga-neto"><span>Neto al banco (Eduardo)</span><strong>${money(neto)}</strong></div>`
+        : `<div class="carga-neto falta"><span>Neto al banco (Eduardo)</span><span class="mini">falta cargarlo</span></div>`;
+    }
+    renderItemsCarga();
+  }
+  function toggleVacCarga(){ toggleVac(); calcCarga(); }
+
+  function guardarCarga(){
+    const p=periodoActual();
+    const clave = periodoActivo+'|'+empActivo;
+    revertirAplicacion(empActivo, clave);
+    const ficha=leerFicha();
+    p.datos[empActivo]=ficha;
+    aplicarDescuentos(empActivo, clave, parseFloat(ficha.descuentoVale)||0, parseFloat(ficha.descuentoPrestamo)||0);
+    guardar();
+    renderChipsCarga(); renderCarga();
+    toast('Liquidación guardada');
+  }
+
+  // Imprime, uno por hoja: comprobante de quincena + el de préstamo y/o vale
+  // con el saldo que queda, si esta quincena se descontó algo.
+  function imprimirCarga(){
+    const e=emp(empActivo), p=periodoActual();
+    const q=leerFicha();
+    const r=calcularEmpleado(e,q);
+    let html = comprobanteHTML(e,r,p);
+    const items=(db.prestamos[empActivo]||[]);
+    const repPres=repartoPreview(items.filter(function(x){ return x.tipo==='prestamo'; }), parseFloat(q.descuentoPrestamo)||0);
+    const repVale=repartoPreview(items.filter(function(x){ return x.tipo==='vale'; }), parseFloat(q.descuentoVale)||0);
+    const huboPres=repPres.some(function(x){ return x.aplica>0; });
+    const huboVale=repVale.some(function(x){ return x.aplica>0; });
+    const quedaPres=repPres.reduce(function(s,x){ return s+x.queda; },0);
+    const quedaVale=repVale.reduce(function(s,x){ return s+x.queda; },0);
+    if(huboPres && quedaPres>0) html += comprobanteDeudaHTML(e,quedaPres,p);
+    if(huboVale && quedaVale>0) html += comprobanteDeudaHTML(e,quedaVale,p,'COMPROBANTE DE VALE');
+    const cont=document.getElementById('printCarga');
+    const ui=document.getElementById('cargaUI');
+    cont.innerHTML=html; cont.classList.remove('oculto');
+    ui.classList.add('no-print');
+    window.print();
+    cont.classList.add('oculto'); cont.innerHTML='';
+    ui.classList.remove('no-print');
+  }
+
   function vistaQuincena(){
     const v=document.getElementById('vista');
     const p=periodoActual();
@@ -1336,14 +1617,14 @@ const App = (function(){
     ${seccionDeuda}`;
   }
 
-  function comprobanteDeudaHTML(e,saldoNuevo,p){
+  function comprobanteDeudaHTML(e,saldoNuevo,p,titulo){
     const hoy=new Date();
     const fecha=`${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
     const et='font-weight:700;display:inline-block;min-width:96px';
     const val='border-bottom:1px solid #999;padding:0 8px';
     return `
     <div class="comprobante">
-      <div style="text-align:center;font-weight:700;font-size:15px;letter-spacing:.5px;margin-bottom:20px">COMPROBANTE DE PRÉSTAMO</div>
+      <div style="text-align:center;font-weight:700;font-size:15px;letter-spacing:.5px;margin-bottom:20px">${titulo||'COMPROBANTE DE PRÉSTAMO'}</div>
       <div style="display:flex;justify-content:flex-end;margin-bottom:18px;font-size:14px">
         <div>Fecha&nbsp; <span style="border:1px solid var(--tinta);border-radius:4px;padding:5px 14px;font-weight:600;display:inline-block;min-width:112px;text-align:center">${fecha}</span></div>
       </div>
@@ -2172,7 +2453,9 @@ const App = (function(){
     rd.readAsText(file);
   }
 
-  return { init, irA, selEmp, setDiasLab, calc, guardarEmp, cambiarPeriodo, nuevoPeriodo, setEmp, setComida,
+  return { init, irA, selEmp, setDiasLab, calc, guardarEmp,
+           selEmpCarga, setDiasLabCarga, calcCarga, toggleVacCarga, guardarCarga,
+           setDescuentoCarga, imprimirCarga, cambiarPeriodo, nuevoPeriodo, setEmp, setComida,
            setRecibo, setReciboAdmin, reciboVac, quitarVac, setMesAdminRecibos,
            toggleVac,
            imprimirUno, backup, restaurar, setPorHoja,
