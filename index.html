@@ -1086,6 +1086,7 @@ const App = (function(){
         const x=rr.item;
         const campo = (i===0)
           ? `<input type="number" step="0.01" value="${total}" style="width:118px"
+               onfocus="this.select()"
                oninput="App.setDescuentoCarga('${tipo}',this.value)">`
           : `<span class="mini">se descuenta en orden, después del anterior</span>`;
         const sug = (i===0 && sugerido>0)
@@ -1093,7 +1094,7 @@ const App = (function(){
           : '';
         return `<div class="carga-item">
           <div class="cab"><span>${x.tipo==='vale'?'🧾':'💳'} ${x.desc||(x.tipo==='vale'?'Vale':'Préstamo')}</span>
-            <span>debe ${money(rr.base)}</span></div>
+            <span>debe ${money(rr.base)} <span class="mini">antes de esta quincena</span></span></div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
             <span class="mini">descontar ahora</span> ${campo} ${sug}
             <span class="carga-queda" style="margin-left:auto">queda <strong>${money(rr.queda)}</strong></span>
