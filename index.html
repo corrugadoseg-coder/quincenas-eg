@@ -100,6 +100,10 @@ nav::-webkit-scrollbar{display:none}
 .grid-campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
 
 /* ---------- Chips empleados ---------- */
+.tab.vieja{opacity:.45;font-size:12.5px}
+.tab.vieja:hover{opacity:.8}
+.tab.vieja.on{opacity:1}
+.tab-sep{align-self:center;color:#a8b9c0;opacity:.5;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;padding:0 8px 0 14px;white-space:nowrap}
 .chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:4px}
 .chip{border:1px solid var(--linea-fuerte);background:#fff;border-radius:20px;
   padding:7px 15px;font-size:13.5px;font-weight:500;color:var(--tinta-2);transition:.12s}
@@ -600,7 +604,7 @@ const App = (function(){
       periodoActivo=clave; guardar();
     }
     periodoActivo = periodoActivo || Object.keys(db.periodos).sort().reverse()[0];
-    renderPeriodos(); renderNav(); irA('inicio');
+    renderPeriodos(); renderNav(); irA('carga');   // la pantalla única es la principal
   }
 
   // ---------- Aviso de límite de espacio (celda de Google Sheets: 50.000 caracteres) ----------
@@ -652,13 +656,21 @@ const App = (function(){
     }
   }
 
+  // El tercer valor marca las pantallas ANTERIORES de carga: siguen accesibles
+  // como camino de vuelta, pero van al final y atenuadas. Se retiran cuando
+  // Raquel confirme una quincena entera cargada con la pantalla nueva.
   const TABS=[
-    ['inicio','Inicio'],['carga','⚡ Carga'],['recibos','Recibos'],['quincena','Quincenas'],['prestamos','Préstamos y vales'],
-    ['resumen','Resumen jefe'],['comprobantes','Comprobantes'],['sac','SAC'],['sacblanco','SAC blanco'],['totales','Totales'],['ajustes','Ajustes']
+    ['carga','⚡ Carga'],['inicio','Inicio'],
+    ['resumen','Resumen jefe'],['comprobantes','Comprobantes'],['sac','SAC'],['sacblanco','SAC blanco'],['totales','Totales'],['ajustes','Ajustes'],
+    ['recibos','Recibos',1],['quincena','Quincenas',1],['prestamos','Préstamos y vales',1]
   ];
   function renderNav(){
-    document.getElementById('nav').innerHTML = TABS.map(([id,t])=>
-      `<button class="tab ${id===tabActiva?'on':''}" onclick="App.irA('${id}')">${t}</button>`).join('');
+    document.getElementById('nav').innerHTML = TABS.map(function(fila,i){
+      const id=fila[0], t=fila[1], vieja=fila[2];
+      const primeraVieja = vieja && !(TABS[i-1]||[])[2];
+      const sep = primeraVieja ? '<span class="tab-sep" title="Pantallas anteriores de carga">anteriores</span>' : '';
+      return sep + `<button class="tab ${vieja?'vieja':''} ${id===tabActiva?'on':''}" onclick="App.irA('${id}')">${t}</button>`;
+    }).join('');
   }
 
   function irA(tab){
@@ -696,7 +708,7 @@ const App = (function(){
     <div class="card"><div class="card-cuerpo">
       <div class="aviso">Período activo: <strong>${p.etiqueta}</strong> — ${cargados} de ${db.empleados.length} empleados cargados. Días laborables: ${p.diasLaborables}.</div>
       <div class="grid-menu">
-        ${menuItem('quincena','👥','Cargar quincena','Liquidar por empleado')}
+        ${menuItem('carga','👥','Cargar quincena','Todo en una pantalla')}
         ${menuItem('resumen','📋','Resumen jefe','Consolidado y deuda')}
         ${menuItem('sac','🎁','SAC','Mejor mes ÷ 2')}
         ${menuItem('prestamos','💳','Préstamos y vales','Saldos por empleado')}
