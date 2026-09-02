@@ -317,6 +317,7 @@ function calcularEmpleado(emp, q) {
   r.baseHsExtras    = hsExtras;
   r.baseDiasVino    = diasVino;
   r.baseDiasLab     = diasLab;
+  r.baseViatico     = viatico;
 
   if (!emp.especial) {
     // ---- Empleado normal ----
@@ -331,6 +332,7 @@ function calcularEmpleado(emp, q) {
   } else {
     // ---- Escalada (caso especial) ----
     const fijas = num(emp.hsExtrasFijas);           // 2 hs fijas siempre
+    r.baseHsExtrasFijas = fijas;
     r.hsExtrasFijasMonto = fijas * (valorHora * FACTOR_HORA_EXTRA);
     const hsNormales = Math.max(0, hsExtras - fijas); // las que exceden de 2
     r.hsExtrasMonto = (valorHora * FACTOR_HORA_EXTRA) * hsNormales;
@@ -1294,15 +1296,22 @@ const App = (function(){
   }
 
   function renderLiq(e,r){
+    // En la pantalla única mostramos los valores reales al lado de cada renglón
+    // (los mismos que van al pie del comprobante). En las pestañas viejas queda
+    // la fórmula genérica de siempre.
+    const det = !!document.getElementById('cargaUI');
+    const vh  = money(r.baseValorHora);
     let filas='';
     if(e.especial){
-      filas+=liqFila('Horas extras fijas','2 × valor hora × 1,5',r.hsExtrasFijasMonto);
-      filas+=liqFila('Horas extras','excedente sobre las 2 fijas',r.hsExtrasMonto);
+      const fij = r.baseHsExtrasFijas||0;
+      const exc = Math.max(0,(r.baseHsExtras||0)-fij);
+      filas+=liqFila('Horas extras fijas',det?`${fij} hs × ${vh} × 1,5`:'2 × valor hora × 1,5',r.hsExtrasFijasMonto);
+      filas+=liqFila('Horas extras',det?`${exc} hs × ${vh} × 1,5`:'excedente sobre las 2 fijas',r.hsExtrasMonto);
     }else{
-      filas+=liqFila('Horas extras','valor hora × 1,5 × cant.',r.hsExtrasMonto);
+      filas+=liqFila('Horas extras',det?`${r.baseHsExtras||0} hs × ${vh} × 1,5`:'valor hora × 1,5 × cant.',r.hsExtrasMonto);
     }
-    filas+=liqFilaPres(r);
-    filas+=liqFila('Viáticos','viático/día × días',r.viaticos);
+    filas+=liqFilaPres(r,det);
+    filas+=liqFila('Viáticos',det?`${money(r.baseViatico)}/día × ${r.baseDiasVino||0} días`:'viático/día × días',r.viaticos);
     filas+=liqFila('Comida','$'+db.config.comidaPorDia+' × días',r.comida);
     if(r.adelanto) filas+=liqFila('Adelanto fut. aumentos','',r.adelanto);
     if(e.especial){
@@ -1332,9 +1341,10 @@ const App = (function(){
   function liqFila(cc,nota,val,cls=''){
     return `<div class="liq-fila ${cls}"><span class="cc">${cc}${nota?`<span class="nota">${nota}</span>`:''}</span><span class="vv">${money(val)}</span></div>`;
   }
-  function liqFilaPres(r){
+  function liqFilaPres(r,det){
     const badge = r.deVacaciones?'<span class="badge-ok">🌴 vacaciones · cobra</span>':(r.vinoCompleto?'<span class="badge-ok">✓ vino completo</span>':'<span class="badge-no">faltó · no cobra</span>');
-    return `<div class="liq-fila"><span class="cc">Presentismo ${badge}</span><span class="vv">${money(r.presentismo)}</span></div>`;
+    const nota = det?`<span class="nota">sobre bruto ${money(r.baseSueldoBruto)}</span>`:'';
+    return `<div class="liq-fila"><span class="cc">Presentismo ${badge}${nota}</span><span class="vv">${money(r.presentismo)}</span></div>`;
   }
   function liqFilaPresPlus(r){
     const badge = r.vinoCompleto?'<span class="badge-ok">✓ vino completo</span>':'<span class="badge-no">faltó · no cobra</span>';
