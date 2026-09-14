@@ -2431,7 +2431,10 @@ const App = (function(){
     if(db.periodos[clave]){
       if(!confirm('Ese período ya existe. ¿Abrirlo?')) return;
     }else{
-      // Duplicar los valores base de la quincena anterior (valor hora, sueldos, viáticos, días)
+      // Duplicar de la quincena anterior el bruto y los días laborables.
+      // El valor hora y el viático NO se copian: salen siempre de Ajustes, para que
+      // un aumento cargado ahí entre en las quincenas nuevas (antes se arrastraba el
+      // valor viejo de quincena en quincena y el aumento no entraba nunca).
       const anterior = db.periodos[periodoActivo];
       const nuevoDatos={};
       let dias=12;
@@ -2440,7 +2443,7 @@ const App = (function(){
         Object.keys(anterior.datos||{}).forEach(id=>{
           const d=anterior.datos[id];
           // arrastra los valores estables, deja en blanco lo que cambia cada quincena
-          nuevoDatos[id]={ valorHora:d.valorHora, sueldoBruto:d.sueldoBruto, viatico:d.viatico,
+          nuevoDatos[id]={ sueldoBruto:d.sueldoBruto,
             diasVino:'', hsExtras:'', descuentoVale:0, descuentoPrestamo:0 };
         });
       }
