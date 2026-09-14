@@ -2451,7 +2451,7 @@ const App = (function(){
       // guardamos los valores arrastrados como "prefill" para que aparezcan al abrir cada ficha
       db.periodos[clave]._prefill = nuevoDatos;
     }
-    periodoActivo=clave; empActivo=null; guardar(); renderPeriodos(); irA('quincena');
+    periodoActivo=clave; empActivo=null; guardar(); renderPeriodos(); irA('carga');   // la pantalla principal de carga
   }
 
   // ---------- Backup / Restaurar ----------
