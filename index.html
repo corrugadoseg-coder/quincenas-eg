@@ -1057,6 +1057,7 @@ const App = (function(){
           <div class="btn-fila">
             <button class="btn sec chico" onclick="App.nuevoItem('${empActivo}','vale')">+ Agregar vale</button>
             <button class="btn sec chico" onclick="App.nuevoItem('${empActivo}','prestamo')">+ Agregar préstamo</button>
+            <button class="btn sec chico" style="margin-left:auto" onclick="App.imprimirValesEnBlanco()">🖨 Imprimir vales en blanco</button>
           </div>
         </div>
       </div>
@@ -2175,6 +2176,51 @@ const App = (function(){
 
   // Imprime el comprobante de VALE con el formato Fecha/Empleado/Números/Letras/Firma.
   // Usa el saldo actual del ítem (sirve al crearlo y en cada actualización tras descontar).
+  // Comprobantes de vale/préstamo EN BLANCO, para tener impresos y completar a mano.
+  // 3 por hoja A4 con línea de corte. No lee ni escribe ningún dato.
+  function imprimirValesEnBlanco(){
+    const uno = `
+      <div class="celda">
+        <div class="vale">
+          <div class="vale-tit">COMPROBANTE DE VALE / PRÉSTAMO</div>
+          <div class="fila"><div>Fecha&nbsp; <span class="fecha-box">____ / ____ / ________</span></div></div>
+          <div class="campo"><span class="et">Empleado:</span><span class="lin"></span></div>
+          <div class="campo"><span class="et">En números:</span><span class="lin"></span></div>
+          <div class="campo"><span class="et">En letras:</span><span class="lin"></span></div>
+          <div class="campo"><span class="et"></span><span class="lin"></span></div>
+          <div class="firma"><span class="et">FIRMA</span><span class="lin"></span></div>
+        </div>
+      </div>`;
+    const html=`<!DOCTYPE html><html lang="es-AR"><head><meta charset="UTF-8"><title>Vales en blanco</title>
+      <style>
+        @page{size:A4;margin:10mm}
+        *{box-sizing:border-box}
+        body{font-family:Arial,Helvetica,sans-serif;color:#1a2b34;margin:0}
+        .hoja{width:190mm;margin:0 auto}
+        .celda{height:92mm;padding:5mm 0;position:relative}
+        .celda + .celda{border-top:1px dashed #777}
+        .celda + .celda::before{content:'✂';position:absolute;top:-10px;left:0;font-size:14px;color:#555;background:#fff;padding:0 3px}
+        .vale{border:2px solid #1a2b34;border-radius:6px;padding:6mm 9mm;height:100%;display:flex;flex-direction:column}
+        .vale-tit{text-align:center;font-weight:700;font-size:16px;letter-spacing:.5px;margin-bottom:4mm}
+        .fila{display:flex;justify-content:flex-end;margin-bottom:4mm;font-size:15px}
+        .fecha-box{border:1px solid #1a2b34;border-radius:4px;padding:5px 12px;font-weight:600;letter-spacing:1px}
+        .campo{display:flex;align-items:flex-end;gap:8px;font-size:15px;margin-bottom:5mm}
+        .campo .et{font-weight:700;min-width:28mm}
+        .lin{flex:1;border-bottom:1px solid #1a2b34;height:1px}
+        .firma{display:flex;align-items:flex-end;gap:12px;font-size:15px;margin-top:auto}
+        .firma .et{font-weight:700}
+        .firma .lin{flex:0 0 80mm}
+        .ayuda{font-size:12px;color:#555;text-align:center;padding:8px}
+        @media print{.ayuda{display:none}}
+      </style></head><body>
+      <div class="ayuda">Hoja A4 con 3 comprobantes. Para imprimir más hojas, elegí la cantidad de copias en el cuadro de impresión.</div>
+      <div class="hoja">${uno}${uno}${uno}</div>
+      <script>window.onload=function(){window.print();}<\/script>
+      </body></html>`;
+    const w=window.open('','_blank');
+    if(!w){ alert('Habilitá las ventanas emergentes para imprimir los vales en blanco.'); return; }
+    w.document.write(html); w.document.close();
+  }
   function imprimirVale(empId,itemId){
     const e=emp(empId);
     const x=(db.prestamos[empId]||[]).find(i=>i.id===itemId); if(!x)return;
@@ -2485,7 +2531,7 @@ const App = (function(){
            setRecibo, setReciboAdmin, reciboVac, quitarVac, setMesAdminRecibos,
            toggleVac,
            imprimirUno, backup, restaurar, setPorHoja,
-           nuevoItem, editItem, borrarItem, imprimirVale,
+           nuevoItem, editItem, borrarItem, imprimirVale, imprimirValesEnBlanco,
            setSacAnio, setSacCuota, verSacEmp,
            setAdminMes, setAjusteSac, vacSb, setSbAnio, setSbCuota,
            setTotAnio, setBusEmp, setBusPeriodo,
