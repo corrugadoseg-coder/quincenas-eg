@@ -1253,7 +1253,7 @@ const App = (function(){
     const el = document.getElementById(tipo==='vale' ? 'f_dvale' : 'f_dpres');
     if(!el) return;
     const n = (typeof val==='number') ? val : (String(val).trim()==='' ? 0 : leerMonto(val));
-    if(!isNaN(n) && n>=0) el.value = n;
+    if(!isNaN(n) && n>=0) el.value = Math.round(n*100)/100;   // a centavos: lo guardado = lo que se ve
     if(rerender){ calcCarga(); return; }
     calc(); actualizarNetoCarga(); actualizarQuedaCarga();
   }
@@ -1266,7 +1266,7 @@ const App = (function(){
     if(isNaN(n) || n<0){
       alert('"'+txt+'" no es un monto válido. Escribilo como 50000, 50.000 o 50.000,50. Quedó el último monto válido.');
     } else {
-      el.value = n;
+      el.value = Math.round(n*100)/100;
     }
     input.value = montoCampo(parseFloat(el.value)||0);
     calc(); actualizarNetoCarga(); actualizarQuedaCarga();
