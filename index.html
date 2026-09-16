@@ -664,13 +664,12 @@ const App = (function(){
     }
   }
 
-  // El tercer valor marca las pantallas ANTERIORES de carga: siguen accesibles
-  // como camino de vuelta, pero van al final y atenuadas. Se retiran cuando
-  // Raquel confirme una quincena entera cargada con la pantalla nueva.
+  // Las pantallas viejas de carga (Quincenas, Recibos, Préstamos y vales) se retiraron el
+  // 17-sep-2026, después de cargar la 1ª de septiembre entera con ⚡ Carga. Si un tercer
+  // valor en 1 volviera a marcar una pestaña, renderNav la muestra atenuada bajo "anteriores".
   const TABS=[
     ['carga','⚡ Carga'],['inicio','Inicio'],
-    ['resumen','Resumen jefe'],['comprobantes','Comprobantes'],['sac','SAC'],['sacblanco','SAC blanco'],['totales','Totales'],['ajustes','Ajustes'],
-    ['recibos','Recibos',1],['prestamos','Préstamos y vales',1]
+    ['resumen','Resumen jefe'],['comprobantes','Comprobantes'],['sac','SAC'],['sacblanco','SAC blanco'],['totales','Totales'],['ajustes','Ajustes']
   ];
   function renderNav(){
     document.getElementById('nav').innerHTML = TABS.map(function(fila,i){
@@ -690,13 +689,11 @@ const App = (function(){
     const v=document.getElementById('vista');
     if(tab==='inicio') v.innerHTML=vistaInicio();
     else if(tab==='carga') vistaCarga();
-    else if(tab==='recibos') v.innerHTML=vistaRecibos();
     else if(tab==='resumen') v.innerHTML=vistaResumen();
     else if(tab==='comprobantes') v.innerHTML=vistaComprobantes();
     else if(tab==='sac') v.innerHTML=vistaSac();
     else if(tab==='sacblanco') v.innerHTML=vistaSacBlanco();
     else if(tab==='totales') v.innerHTML=vistaTotales();
-    else if(tab==='prestamos') v.innerHTML=vistaPrestamos();
     else if(tab==='ajustes') v.innerHTML=vistaAjustes();
     // Aviso grande de espacio (solo en zona roja): se antepone a cualquier pestaña.
     const ae = avisoEspacioGrande();
@@ -730,115 +727,12 @@ const App = (function(){
       <div class="ico">${ico}</div><span class="t">${t}</span><span class="d">${d}</span></button>`;
   }
 
-  // ---------- Pantalla: Recibos (datos crudos de los recibos oficiales) ----------
-  function vistaRecibos(){
-    const p=periodoActual();
-    if(!p){
-      return `<div class="card"><div class="card-cuerpo"><div class="vacio"><div class="ico">🧾</div>
-        No hay ninguna quincena creada todavía.<br>Creá una con el botón "Nueva" de arriba para empezar a cargar los recibos.</div></div></div>`;
-    }
-    const claveMes = periodoActivo.split('-').slice(0,2).join('-');
-    // helper: info del recibo de vacaciones de este mes (si hay)
-    function vacInfo(claveEmp){
-      const r=(db.sacBlanco[claveMes]||{})[claveEmp];
-      if(r&&r.vac&&(r.vac.monto>0||r.vac.neto>0)){
-        return `<div style="font-size:11px;color:var(--tinta-2);margin-top:3px">🌴 Vac ${r.vac.desde} a ${r.vac.hasta}: bruto ${money0(r.vac.monto||0)} / neto ${money0(r.vac.neto||0)}</div>`;
-      }
-      return '';
-    }
-    // quincenales: bruto y neto de esta quincena
-    const filasQuin=db.empleados.map(e=>{
-      const d=p.datos[e.id]||{};
-      const rv=(db.sacBlanco[claveMes]||{})[e.id];
-      const tieneVac=rv&&rv.vac&&(rv.vac.monto>0||rv.vac.neto>0);
-      return `<tr>
-        <td>${e.apellido}${vacInfo(e.id)}</td>
-        <td><input type="number" step="0.01" value="${d.sueldoBruto||''}" placeholder="bruto"
-            onchange="App.setRecibo('${e.id}','sueldoBruto',this.value)" style="width:130px"></td>
-        <td><input type="number" step="0.01" value="${d.sueldoBlanco||''}" placeholder="neto (banco)"
-            onchange="App.setRecibo('${e.id}','sueldoBlanco',this.value)" style="width:130px"></td>
-        <td class="no-print"><button class="btn sec chico" onclick="App.reciboVac('${e.id}')">${tieneVac?'🌴 editar vac.':'+ recibo vac.'}</button>${tieneVac?` <button class="btn sec chico" title="Quitar vacaciones" onclick="App.quitarVac('${e.id}')" style="color:#b3402f">🗑</button>`:''}</td>
-      </tr>`;
-    }).join('');
-    // administrativos: bruto y neto del mes elegido con su propio selector (mesAdminRecibos)
-    // Si no hay mes elegido, arranca en el mes de la quincena visible.
-    if(!mesAdminRecibos) mesAdminRecibos = claveMes;
-    const admin=db.admin||[];
-    // años disponibles para el selector (de períodos y de sacBlanco), + el año actual
-    const aniosSet=new Set();
-    Object.keys(db.periodos).forEach(k=>aniosSet.add(k.split('-')[0]));
-    Object.keys(db.sacBlanco).filter(k=>k[0]!=='_').forEach(k=>aniosSet.add(k.split('-')[0]));
-    aniosSet.add(String(new Date().getFullYear()));
-    const anios=[...aniosSet].sort();
-    const mAdmAnio=mesAdminRecibos.split('-')[0];
-    const mAdmMes=parseInt(mesAdminRecibos.split('-')[1]);
-    const nombresMes=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-    const selMesAdmin=`<select onchange="App.setMesAdminRecibos('mes',this.value)" style="width:auto">
-      ${nombresMes.map((n,i)=>`<option value="${i+1}" ${i+1===mAdmMes?'selected':''}>${n}</option>`).join('')}</select>`;
-    const selAnioAdmin=`<select onchange="App.setMesAdminRecibos('anio',this.value)" style="width:auto">
-      ${anios.map(a=>`<option ${a===mAdmAnio?'selected':''}>${a}</option>`).join('')}</select>`;
-    function vacInfoAdmin(claveEmp){
-      const r=(db.sacBlanco[mesAdminRecibos]||{})[claveEmp];
-      if(r&&r.vac&&(r.vac.monto>0||r.vac.neto>0)){
-        return `<div style="font-size:11px;color:var(--tinta-2);margin-top:3px">🌴 Vac ${r.vac.desde} a ${r.vac.hasta}: bruto ${money0(r.vac.monto||0)} / neto ${money0(r.vac.neto||0)}</div>`;
-      }
-      return '';
-    }
-    const filasAdmin=admin.map(a=>{
-      const reg=(db.sacBlanco[mesAdminRecibos]||{})['admin:'+a.nombre]||{};
-      const tieneVac=reg.vac&&(reg.vac.monto>0||reg.vac.neto>0);
-      const celdaBruto = a.gerente
-        ? `<td style="color:#8a7d63;font-size:12px">— (gerente, sin SAC)</td>`
-        : `<td><input type="number" step="0.01" value="${reg.bruto||''}" placeholder="bruto"
-            onchange="App.setReciboAdmin('${a.nombre}','bruto',this.value)" style="width:130px"></td>`;
-      return `<tr>
-        <td>${a.nombre}${a.gerente?' <span style="font-size:10px;color:#8a7d63">(gerente)</span>':''}${vacInfoAdmin('admin:'+a.nombre)}</td>
-        ${celdaBruto}
-        <td><input type="number" step="0.01" value="${reg.neto||''}" placeholder="neto"
-            onchange="App.setReciboAdmin('${a.nombre}','neto',this.value)" style="width:130px"></td>
-        <td class="no-print"><button class="btn sec chico" onclick="App.reciboVac('admin:${a.nombre}')">${tieneVac?'🌴 editar vac.':'+ recibo vac.'}</button>${tieneVac?` <button class="btn sec chico" title="Quitar vacaciones" onclick="App.quitarVac('admin:${a.nombre}')" style="color:#b3402f">🗑</button>`:''}</td>
-      </tr>`;
-    }).join('');
-
-    return `
-    <div class="card">
-      <div class="card-cab"><h2>Recibos oficiales</h2><span class="sub">${p.etiqueta}</span></div>
-      <div class="card-cuerpo">
-        <div class="aviso">Cargá acá el <strong>bruto</strong> y el <strong>neto</strong> de cada recibo oficial. Estos datos alimentan solos el resto: el bruto va al presentismo de la quincena y al SAC blanco; el neto va al resumen de Eduardo. El valor hora y los viáticos se cambian en <strong>Ajustes</strong>. Los quincenales usan el selector de período de arriba; los administrativos, el selector de mes propio de su bloque.</div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-cab"><h2 style="font-size:15px">Quincenales — ${p.etiqueta}</h2></div>
-      <div class="card-cuerpo" style="padding:0">
-        <table><thead><tr><th>Empleado</th><th>Bruto remun.</th><th>Neto (banco)</th><th class="no-print">Vacaciones</th></tr></thead>
-        <tbody>${filasQuin}</tbody></table>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-cab"><h2 style="font-size:15px">Administración (mensuales)</h2>
-        <div style="margin-left:auto;display:flex;gap:8px;align-items:center" class="no-print">
-          <span style="font-size:12px;color:var(--tinta-2)">Mes:</span>${selMesAdmin}${selAnioAdmin}</div></div>
-      <div class="card-cuerpo" style="padding:0">
-        <div class="aviso" style="margin:10px 12px">Los administrativos son mensuales: elegí el mes acá al lado y cargá su bruto y neto una vez por mes. El bruto alimenta el SAC blanco; el neto va al resumen.</div>
-        <table><thead><tr><th>Empleado</th><th>Bruto remun.</th><th>Neto</th><th class="no-print">Vacaciones</th></tr></thead>
-        <tbody>${filasAdmin || '<tr><td colspan="4" style="text-align:center;color:#8a7d63;padding:16px">Sin administrativos cargados.</td></tr>'}</tbody></table>
-      </div>
-    </div>`;
-  }
   function setMesAdminRecibos(campo,val){
     const partes=(mesAdminRecibos||(periodoActivo.split('-').slice(0,2).join('-'))).split('-');
     if(campo==='mes') partes[1]=String(val).padStart(2,'0');
     else partes[0]=val;
     mesAdminRecibos=partes.join('-');
     refrescarTrasCambio();
-  }
-  function setRecibo(empId,campo,val){
-    const p=periodoActual();
-    p.datos[empId]=p.datos[empId]||{};
-    p.datos[empId][campo]=val;
-    // asegurar que quede el dato de diasLaborables para el cálculo del SAC
-    if(p.datos[empId].diasLaborables===undefined) p.datos[empId].diasLaborables=p.diasLaborables;
-    guardar(); // no re-renderizamos: el valor ya está en el input y así no salta la pantalla
   }
   function setReciboAdmin(nombre,campo,val){
     const claveMes = mesAdminRecibos || periodoActivo.split('-').slice(0,2).join('-');
@@ -2080,8 +1974,6 @@ const App = (function(){
   function setSacCuota(v){ sacCuota=parseInt(v); sacEmpSel=null; irA('sac'); }
   function verSacEmp(id){ sacEmpSel=id; irA('sac'); }
 
-  // ---------- Pantalla: Préstamos y vales ----------
-  // ---------- Pantalla: Préstamos y vales ----------
   // ---------- SAC BLANCO ----------
   // Quincenales: el bruto sale solo de las quincenas cargadas (db.periodos), sumando las 2 del mes.
   // Administrativos (db.admin): cargan 1 bruto y 1 neto mensual a mano en db.sacBlanco["YYYY-MM"]["admin:Nombre"].
@@ -2287,63 +2179,7 @@ const App = (function(){
   function setSbAnio(v){ sbAnio=v; irA('sacblanco'); }
   function setSbCuota(v){ sbCuota=parseInt(v); irA('sacblanco'); }
 
-  function vistaPrestamos(){
-    const filas=db.empleados.map(e=>{
-      const items=(db.prestamos[e.id]||[]).filter(x=>!x.saldado);
-      const deuda=items.reduce((s,x)=>s+(x.saldo||0),0);
-      const detalle=items.length? items.map(x=>tarjetaItem(e.id,x)).join('')
-        : `<div style="font-size:13px;color:var(--tinta-2);opacity:.7;padding:4px 0">Sin préstamos ni vales activos</div>`;
-      return `
-      <div class="card">
-        <div class="card-cab">
-          <div style="width:34px;height:34px;border-radius:50%;background:var(--tinta);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px">${e.apellido.slice(0,2).toUpperCase()}</div>
-          <div><h2 style="font-size:15px">${e.apellido}</h2></div>
-          <div style="margin-left:auto;text-align:right">
-            <div style="font-size:11.5px;color:var(--tinta-2)">Deuda total</div>
-            <div style="font-size:16px;font-weight:700;color:${deuda>0?'var(--ambar)':'var(--verde)'}">${money0(deuda)}</div>
-          </div>
-        </div>
-        <div class="card-cuerpo">
-          ${detalle}
-          <div class="btn-fila" style="margin-top:12px">
-            <button class="btn sec chico" onclick="App.nuevoItem('${e.id}','prestamo')">+ Préstamo</button>
-            <button class="btn sec chico" onclick="App.nuevoItem('${e.id}','vale')">+ Vale</button>
-          </div>
-        </div>
-      </div>`;
-    }).join('');
-    return `
-    <div style="margin-bottom:14px">
-      <div style="font-size:16px;font-weight:600">Préstamos y vales</div>
-      <div style="font-size:12.5px;color:var(--tinta-2)">Cuenta corriente de cada empleado · los saldos se arrastran solos</div>
-    </div>
-    <div class="aviso">Al cargar la quincena, la app te trae sola el descuento pendiente de cada uno para que lo confirmes. Acá ves y editás los saldos.</div>
-    ${filas}`;
-  }
 
-  function tarjetaItem(empId,x){
-    const esVale=x.tipo==='vale';
-    const tag=esVale?'<span style="font-size:11px;background:var(--verde-bg);color:var(--verde);padding:2px 8px;border-radius:12px;font-weight:600">Vale</span>'
-                    :'<span style="font-size:11px;background:var(--ambar-bg);color:var(--ambar);padding:2px 8px;border-radius:12px;font-weight:600">Préstamo</span>';
-    const nota=esVale?'Se descuenta entero en la próxima quincena':`Original: ${money0(x.original)} · se descuenta por cuotas`;
-    return `
-    <div style="border:1px solid var(--linea);border-radius:8px;padding:12px 14px;margin-bottom:8px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        ${tag}
-        <input value="${x.desc||''}" placeholder="Descripción" onchange="App.editItem('${empId}','${x.id}','desc',this.value)"
-          style="border:none;border-bottom:1px dashed var(--linea-fuerte);font-size:13.5px;font-weight:500;padding:2px 0;flex:1;background:transparent">
-        <span style="font-size:13px;color:var(--tinta-2)">saldo</span>
-        <input type="number" step="0.01" value="${x.saldo}" onchange="App.editItem('${empId}','${x.id}','saldo',this.value)"
-          style="width:110px;text-align:right;border:1px solid var(--linea-fuerte);border-radius:6px;padding:4px 8px;font-variant-numeric:tabular-nums">
-      </div>
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <span style="font-size:11.5px;color:var(--tinta-2)">${nota}</span>
-        <div style="display:flex;gap:12px">
-          <button onclick="App.imprimirVale('${empId}','${x.id}')" style="background:none;border:none;color:var(--text-accent,#a86a2b);font-size:12px;cursor:pointer;font-weight:600">🧾 Imprimir vale</button>
-          <button onclick="App.borrarItem('${empId}','${x.id}')" style="background:none;border:none;color:var(--rojo);font-size:12px;cursor:pointer">Eliminar</button>
-        </div>
-      </div>`;
-  }
 
   function nuevoItem(empId,tipo){
     const label=tipo==='vale'?'vale':'préstamo';
@@ -2358,12 +2194,6 @@ const App = (function(){
       tipo, desc, original:monto, saldo:monto, saldado:false
     });
     guardar(); refrescarTrasCambio();
-  }
-  function editItem(empId,itemId,campo,val){
-    const it=(db.prestamos[empId]||[]).find(x=>x.id===itemId); if(!it)return;
-    if(campo==='saldo'){ it.saldo=parseFloat(val)||0; if(it.saldo<=0) it.saldado=true; }
-    else it[campo]=val;
-    guardar(); if(campo==='saldo') refrescarTrasCambio();
   }
   function borrarItem(empId,itemId){
     if(!confirm('¿Eliminar este registro?')) return;
@@ -2725,10 +2555,10 @@ const App = (function(){
   return { init, irA, calc,
            selEmpCarga, setDiasLabCarga, calcCarga, toggleVacCarga, guardarCarga, corregirItemCarga, confirmarDescuentoCarga, focoDescuentoCarga,
            setDescuentoCarga, imprimirCarga, cambiarPeriodo, nuevoPeriodo, setEmp, setComida,
-           setRecibo, setReciboAdmin, reciboVac, quitarVac, setMesAdminRecibos,
+           setReciboAdmin, reciboVac, quitarVac, setMesAdminRecibos,
            toggleVac,
            imprimirUno, backup, restaurar, setPorHoja,
-           nuevoItem, editItem, borrarItem, imprimirVale, imprimirValesEnBlanco,
+           nuevoItem, borrarItem, imprimirVale, imprimirValesEnBlanco,
            setSacAnio, setSacCuota, verSacEmp,
            setAdminMes, setAjusteSac, vacSb, setSbAnio, setSbCuota,
            setTotAnio, setBusEmp, setBusPeriodo,
