@@ -1215,9 +1215,10 @@ const App = (function(){
       return rep.map(function(rr,i){
         const x=rr.item;
         const campo = (i===0)
-          ? `<input type="number" step="0.01" value="${total}" style="width:118px"
+          ? `<input type="text" inputmode="decimal" autocomplete="off" value="${montoCampo(total)}" style="width:118px;text-align:right"
                onfocus="this.select()"
-               oninput="App.setDescuentoCarga('${tipo}',this.value)">`
+               oninput="App.setDescuentoCarga('${tipo}',this.value)"
+               onchange="App.confirmarDescuentoCarga('${tipo}',this)">`
           : `<span class="mini">se descuenta en orden, después del anterior</span>`;
         const sug = (i===0 && sugerido>0)
           ? `<button class="btn sec chico" onclick="App.setDescuentoCarga('${tipo}',${sugerido},true)">usar ${money0(sugerido)}</button>`
@@ -1227,7 +1228,7 @@ const App = (function(){
             <span>debe ${money(rr.base)} <span class="mini">antes de esta quincena</span></span></div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
             <span class="mini">descontar ahora</span> ${campo} ${sug}
-            <span class="carga-queda" style="margin-left:auto">queda <strong>${money(rr.queda)}</strong></span>
+            <span class="carga-queda" data-item="${x.id}" style="margin-left:auto">queda <strong>${money(rr.queda)}</strong></span>
           </div>
           <div class="btn-fila" style="margin-top:6px">
             <button class="btn sec chico" onclick="App.corregirItemCarga('${empActivo}','${x.id}')">✏ Corregir</button>
@@ -1239,26 +1240,60 @@ const App = (function(){
     }
     cont.innerHTML = tarjetas(repVale,'vale',dVale,sugVale) + tarjetas(repPres,'prestamo',dPres,0);
   }
+  // Monto para mostrar en el campo "descontar ahora": 100000 → "100.000", 191895.77 → "191.895,77".
+  function montoCampo(n){
+    const v=Math.round((Number(n)||0)*100)/100;
+    return v.toLocaleString('es-AR',{minimumFractionDigits:Number.isInteger(v)?0:2,maximumFractionDigits:2});
+  }
+  // Mientras se escribe en "descontar ahora" NO se redibujan las tarjetas: redibujar
+  // reemplaza el campo que tiene el cursor y lo descoloca. Solo se actualizan la
+  // liquidación, el neto y los "queda". Si lo tipeado todavía no es un número (a medio
+  // escribir), se deja el último valor válido. El botón "usar $X" sí redibuja todo.
   function setDescuentoCarga(tipo,val,rerender){
     const el = document.getElementById(tipo==='vale' ? 'f_dvale' : 'f_dpres');
     if(!el) return;
-    el.value = val;
-    calcCarga();
-    if(rerender) renderItemsCarga();
+    const n = (typeof val==='number') ? val : (String(val).trim()==='' ? 0 : leerMonto(val));
+    if(!isNaN(n) && n>=0) el.value = n;
+    if(rerender){ calcCarga(); return; }
+    calc(); actualizarNetoCarga(); actualizarQuedaCarga();
+  }
+  // Al salir del campo (o Enter): validar y dejar el número prolijo en el mismo campo.
+  function confirmarDescuentoCarga(tipo,input){
+    const el = document.getElementById(tipo==='vale' ? 'f_dvale' : 'f_dpres');
+    if(!el) return;
+    const txt = String(input.value).trim();
+    const n = txt==='' ? 0 : leerMonto(txt);
+    if(isNaN(n) || n<0){
+      alert('"'+txt+'" no es un monto válido. Escribilo como 50000, 50.000 o 50.000,50. Quedó el último monto válido.');
+    } else {
+      el.value = n;
+    }
+    input.value = montoCampo(parseFloat(el.value)||0);
+    calc(); actualizarNetoCarga(); actualizarQuedaCarga();
+  }
+  function actualizarQuedaCarga(){
+    const items=(db.prestamos[empActivo]||[]).filter(function(x){ return saldoBase(x)>0; });
+    const elV=document.getElementById('f_dvale'), elP=document.getElementById('f_dpres');
+    const reps = repartoPreview(items.filter(function(x){ return x.tipo==='vale'; }), parseFloat(elV?elV.value:0)||0)
+      .concat(repartoPreview(items.filter(function(x){ return x.tipo==='prestamo'; }), parseFloat(elP?elP.value:0)||0));
+    reps.forEach(function(rr){
+      const s=document.querySelector('#ccItems .carga-queda[data-item="'+rr.item.id+'"] strong');
+      if(s) s.textContent=money(rr.queda);
+    });
   }
 
   // Recalcula con el motor de siempre y agrega lo propio de esta pantalla.
   function calcCarga(){
     calc();                       // ← motor intacto: pinta #liqBox
-    const q=leerFicha();
-    const nb=document.getElementById('netoBanco');
-    if(nb){
-      const neto=parseFloat(q.sueldoBlanco)||0;
-      nb.innerHTML = neto>0
-        ? `<div class="carga-neto"><span>Neto al banco (Eduardo)</span><strong>${money(neto)}</strong></div>`
-        : `<div class="carga-neto falta"><span>Neto al banco (Eduardo)</span><span class="mini">falta cargarlo</span></div>`;
-    }
+    actualizarNetoCarga();
     renderItemsCarga();
+  }
+  function actualizarNetoCarga(){
+    const nb=document.getElementById('netoBanco'); if(!nb) return;
+    const neto=parseFloat(leerFicha().sueldoBlanco)||0;
+    nb.innerHTML = neto>0
+      ? `<div class="carga-neto"><span>Neto al banco (Eduardo)</span><strong>${money(neto)}</strong></div>`
+      : `<div class="carga-neto falta"><span>Neto al banco (Eduardo)</span><span class="mini">falta cargarlo</span></div>`;
   }
   function toggleVacCarga(){ toggleVac(); calcCarga(); }
 
@@ -2544,7 +2579,7 @@ const App = (function(){
   }
 
   return { init, irA, calc,
-           selEmpCarga, setDiasLabCarga, calcCarga, toggleVacCarga, guardarCarga, corregirItemCarga,
+           selEmpCarga, setDiasLabCarga, calcCarga, toggleVacCarga, guardarCarga, corregirItemCarga, confirmarDescuentoCarga,
            setDescuentoCarga, imprimirCarga, cambiarPeriodo, nuevoPeriodo, setEmp, setComida,
            setRecibo, setReciboAdmin, reciboVac, quitarVac, setMesAdminRecibos,
            toggleVac,
