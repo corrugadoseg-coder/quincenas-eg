@@ -179,6 +179,13 @@ tbody tr:last-child td{border-bottom:none}
 .carga-neto.falta{color:var(--tinta-2)}
 .hint-carga{font-size:11.5px;color:var(--tinta-2);margin-top:6px;line-height:1.5}
 .carga-vacrec{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding:8px 10px;background:var(--papel-2);border-radius:8px;font-size:13px}
+.carga-exc{margin-top:8px;padding:7px 10px;border-radius:7px;background:#fff4e0;border:1px solid #e3c48a;font-size:12.5px;color:#6b4a12}
+.modal-exc{position:fixed;inset:0;background:rgba(20,30,35,.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px}
+.modal-exc-caja{background:#fff;border-radius:12px;max-width:470px;width:100%;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,.25);font-size:14.5px;line-height:1.5}
+.modal-exc-caja p{margin:6px 0}
+.modal-exc-tit{font-size:16.5px;font-weight:700;margin-bottom:8px;color:#8a3d12}
+.modal-exc-botones{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.modal-exc-botones .btn{white-space:normal;text-align:left;line-height:1.35}
 .mini{font-size:10.5px;color:var(--tinta-2);font-weight:400}
 @media print{ .carga-liq{position:static} }
 /* ---------- Comprobante ---------- */
@@ -1035,6 +1042,82 @@ const App = (function(){
     guardar(); refrescarTrasCambio();
   }
 
+  // ============================================================
+  //  Descuento MAYOR que la deuda (circuito de Raquel, confirmado 17-sep-2026):
+  //  esta quincena se descuenta SOLO la deuda real, y la diferencia pasa como VALE
+  //  NUEVO a la quincena siguiente. Nunca se decide solo: se consulta primero.
+  //  El vale se crea recién al Guardar la quincena, igual que el resto de la ficha,
+  //  para que no quede un vale suelto si la carga no se guarda.
+  // ============================================================
+  const excedentesPendientes = {};      // "periodo|empleado|tipo" -> diferencia a pasar como vale
+  const descuentoAntesDeEditar = {};    // tipo -> descuento que había al entrar al campo
+  function claveExcedente(tipo){ return periodoActivo+'|'+empActivo+'|'+tipo; }
+  // Deuda real del tipo ANTES de esta quincena. No cuenta los vales que nacieron del
+  // excedente de esta misma quincena: esos se descuentan recién en la siguiente.
+  function deudaTipoCarga(tipo){
+    return (db.prestamos[empActivo]||[]).filter(function(x){
+      return x.tipo===tipo && !(x.origen && x.origen.periodo===periodoActivo);
+    }).reduce(function(s,x){ return s+Math.max(0,saldoBase(x)); },0);
+  }
+  function excedenteCarga(tipo){
+    const el=document.getElementById(tipo==='vale'?'f_dvale':'f_dpres'); if(!el) return null;
+    const d=Math.round((parseFloat(el.value)||0)*100)/100;
+    const b=Math.round(deudaTipoCarga(tipo)*100)/100;
+    if(d<=b+0.004) return null;
+    return { tipo:tipo, descuento:d, deuda:b, diferencia:Math.round((d-b)*100)/100 };
+  }
+  function focoDescuentoCarga(tipo,input){
+    const el=document.getElementById(tipo==='vale'?'f_dvale':'f_dpres');
+    descuentoAntesDeEditar[tipo] = el ? el.value : '0';
+    input.select();
+  }
+  function consultarExcedente(ex, despues){
+    if(document.getElementById('modalExcedente')) return;
+    const deQue = ex.tipo==='vale' ? 'de vales' : 'de préstamos';
+    const m=document.createElement('div');
+    m.id='modalExcedente'; m.className='modal-exc no-print';
+    m.innerHTML=`<div class="modal-exc-caja" role="dialog" aria-modal="true" aria-labelledby="excTit">
+      <div class="modal-exc-tit" id="excTit">El descuento supera la deuda</div>
+      <p>Descontás <strong>${money(ex.descuento)}</strong> pero la deuda ${deQue} es <strong>${money(ex.deuda)}</strong>.</p>
+      <p>Esta quincena se descuenta <strong>${money(ex.deuda)}</strong> y quedan <strong>${money(ex.diferencia)}</strong> que pasarían como vale a la quincena siguiente.</p>
+      <p style="font-weight:600;margin-top:10px">¿Qué hacés?</p>
+      <div class="modal-exc-botones">
+        <button class="btn" id="excCrear">Sí: descontar ${money(ex.deuda)} ahora y crear un vale de ${money(ex.diferencia)} para la quincena siguiente</button>
+        <button class="btn sec" id="excCorregir">No, corregir el monto</button>
+      </div></div>`;
+    document.body.appendChild(m);
+    function cerrar(){ m.remove(); document.removeEventListener('keydown',tecla,true); }
+    function corregir(){ cerrar(); volverACorregirDescuento(ex.tipo); }
+    function tecla(e){ if(e.key==='Escape'){ e.preventDefault(); corregir(); } }
+    m.querySelector('#excCrear').onclick=function(){ cerrar(); aceptarExcedente(ex); if(despues) despues(); };
+    m.querySelector('#excCorregir').onclick=corregir;
+    document.addEventListener('keydown',tecla,true);
+    m.querySelector('#excCorregir').focus();   // lo que queda marcado es la opción que no toca nada
+  }
+  function aceptarExcedente(ex){
+    const el=document.getElementById(ex.tipo==='vale'?'f_dvale':'f_dpres'); if(!el) return;
+    el.value = ex.deuda;                                   // hoy se descuenta solo la deuda
+    excedentesPendientes[claveExcedente(ex.tipo)] = ex.diferencia;   // se crea al guardar
+    calcCarga();
+  }
+  function volverACorregirDescuento(tipo){
+    const el=document.getElementById(tipo==='vale'?'f_dvale':'f_dpres'); if(!el) return;
+    const b=Math.round(deudaTipoCarga(tipo)*100)/100;
+    const antes=parseFloat(descuentoAntesDeEditar[tipo]);
+    el.value = (!isNaN(antes) && antes<=b+0.004) ? antes : b;   // nunca queda por encima de la deuda
+    calcCarga();
+    const inp=document.querySelector('#ccItems input[oninput*="setDescuentoCarga(\''+tipo+'\'"]');
+    if(inp){ inp.focus(); inp.select(); }
+  }
+  // Antes de guardar o imprimir: si algún descuento supera la deuda, consultar primero.
+  function resolverExcedentesAntes(continuar){
+    if(document.getElementById('modalExcedente')) return false;
+    const ex = excedenteCarga('vale') || excedenteCarga('prestamo');
+    if(!ex) return true;
+    consultarExcedente(ex, continuar);
+    return false;
+  }
+
   function cargaCompleto(d){
     return !!(d && d.diasVino!==undefined && d.diasVino!=='');
   }
@@ -1107,6 +1190,15 @@ const App = (function(){
   }
 
   function renderCarga(){
+    // Se vuelve a leer lo guardado: una decisión de excedente sin guardar se descarta y se
+    // retoma la que quedó guardada con la quincena (si la hubo).
+    (function(){
+      const g = ((periodoActual().datos[empActivo]||{}).excedente) || {};
+      ['vale','prestamo'].forEach(function(tipo){
+        if(g[tipo]>0) excedentesPendientes[claveExcedente(tipo)] = g[tipo];
+        else delete excedentesPendientes[claveExcedente(tipo)];
+      });
+    })();
     const e=emp(empActivo), p=periodoActual();
     const d=p.datos[empActivo] || (p._prefill&&p._prefill[empActivo]) || {};
     const val=function(k,def){ return (d[k]!==undefined && d[k]!=='') ? d[k] : def; };
@@ -1214,9 +1306,15 @@ const App = (function(){
     function tarjetas(rep, tipo, total, sugerido){
       return rep.map(function(rr,i){
         const x=rr.item;
+        const pendExc = (i===0) ? (excedentesPendientes[claveExcedente(tipo)]||0) : 0;
+        const excGuardado = (((periodoActual().datos[empActivo]||{}).excedente)||{})[tipo];
+        const yaCreado = pendExc>0 && excGuardado>0 && Math.abs(excGuardado-pendExc)<0.005;
+        const notaExc = pendExc<=0 ? '' : (yaCreado
+          ? `<div class="carga-exc" id="exc-${tipo}">Esta quincena se descuenta solo la deuda. La diferencia de <strong>${money(pendExc)}</strong> quedó como vale para la quincena siguiente.</div>`
+          : `<div class="carga-exc" id="exc-${tipo}">Esta quincena se descuenta solo la deuda. <strong>Al guardar</strong> se crea un vale de <strong>${money(pendExc)}</strong> para la quincena siguiente.</div>`);
         const campo = (i===0)
           ? `<input type="text" inputmode="decimal" autocomplete="off" value="${montoCampo(total)}" style="width:118px;text-align:right"
-               onfocus="this.select()"
+               onfocus="App.focoDescuentoCarga('${tipo}',this)"
                oninput="App.setDescuentoCarga('${tipo}',this.value)"
                onchange="App.confirmarDescuentoCarga('${tipo}',this)">`
           : `<span class="mini">se descuenta en orden, después del anterior</span>`;
@@ -1230,6 +1328,7 @@ const App = (function(){
             <span class="mini">descontar ahora</span> ${campo} ${sug}
             <span class="carga-queda" data-item="${x.id}" style="margin-left:auto">queda <strong>${money(rr.queda)}</strong></span>
           </div>
+          ${notaExc}
           <div class="btn-fila" style="margin-top:6px">
             <button class="btn sec chico" onclick="App.corregirItemCarga('${empActivo}','${x.id}')">✏ Corregir</button>
             <button class="btn sec chico" onclick="App.imprimirVale('${empActivo}','${x.id}')">🧾 Imprimir vale</button>
@@ -1253,6 +1352,10 @@ const App = (function(){
     const el = document.getElementById(tipo==='vale' ? 'f_dvale' : 'f_dpres');
     if(!el) return;
     const n = (typeof val==='number') ? val : (String(val).trim()==='' ? 0 : leerMonto(val));
+    if(typeof val!=='number'){
+      delete excedentesPendientes[claveExcedente(tipo)];
+      const nota=document.getElementById('exc-'+tipo); if(nota) nota.style.display='none';
+    }
     if(!isNaN(n) && n>=0) el.value = Math.round(n*100)/100;   // a centavos: lo guardado = lo que se ve
     if(rerender){ calcCarga(); return; }
     calc(); actualizarNetoCarga(); actualizarQuedaCarga();
@@ -1270,6 +1373,8 @@ const App = (function(){
     }
     input.value = montoCampo(parseFloat(el.value)||0);
     calc(); actualizarNetoCarga(); actualizarQuedaCarga();
+    const ex = excedenteCarga(tipo);
+    if(ex) consultarExcedente(ex);
   }
   function actualizarQuedaCarga(){
     const items=(db.prestamos[empActivo]||[]).filter(function(x){ return saldoBase(x)>0; });
@@ -1298,20 +1403,59 @@ const App = (function(){
   function toggleVacCarga(){ toggleVac(); calcCarga(); }
 
   function guardarCarga(){
+    if(!resolverExcedentesAntes(guardarCarga)) return;
     const p=periodoActual();
     const clave = periodoActivo+'|'+empActivo;
     revertirAplicacion(empActivo, clave);
     const ficha=leerFicha();
     p.datos[empActivo]=ficha;
+    // Vales por diferencia que ya había creado ESTA quincena en un guardado anterior: si todavía
+    // no se descontaron en ninguna quincena, se sacan antes de aplicar y se vuelven a crear abajo
+    // con lo que se decidió ahora. Así re-guardar nunca duplica ni deja un vale viejo vivo.
+    const lista = db.prestamos[empActivo] = db.prestamos[empActivo]||[];
+    const intactos = {}, tocados = {};
+    for(let i=lista.length-1;i>=0;i--){
+      const x=lista[i];
+      if(!(x.origen && x.origen.periodo===periodoActivo)) continue;
+      const usado = x.aplicaciones && Object.keys(x.aplicaciones).some(function(c){ return x.aplicaciones[c]>0; });
+      if(usado) tocados[x.origen.desde]=x;
+      else { intactos[x.origen.desde]=x; lista.splice(i,1); }
+    }
     aplicarDescuentos(empActivo, clave, parseFloat(ficha.descuentoVale)||0, parseFloat(ficha.descuentoPrestamo)||0);
+    // Recién ahora, con los descuentos de esta quincena ya aplicados, se crean los vales por
+    // la diferencia: así no reciben descuento hoy y se descuentan en la quincena siguiente.
+    let creados=0; const excedente={};
+    ['vale','prestamo'].forEach(function(tipo){
+      const z=excedentesPendientes[claveExcedente(tipo)]||0;
+      if(tocados[tipo]){
+        // Ya se empezó a descontar en otra quincena: no se toca, se avisa si cambió.
+        excedente[tipo]=tocados[tipo].original;
+        if(Math.abs(z-tocados[tipo].original)>0.004)
+          alert('El vale por la diferencia de esta quincena ('+money(tocados[tipo].original)+') ya se empezó a descontar en otra quincena, así que no lo cambio. Si hay que corregirlo, hacelo desde su tarjeta.');
+        return;
+      }
+      if(z>0){
+        const previo=intactos[tipo];
+        lista.push({
+          id: previo ? previo.id : 'i'+Date.now()+Math.floor(Math.random()*1000)+tipo.charAt(0),
+          tipo:'vale', desc:'Diferencia de descuento · '+p.etiqueta,
+          original:z, saldo:z, saldado:false,
+          origen:{ periodo:periodoActivo, desde:tipo }
+        });
+        excedente[tipo]=z;
+        if(!previo || Math.abs(previo.original-z)>0.004) creados+=z;
+      }
+    });
+    if(excedente.vale||excedente.prestamo) ficha.excedente=excedente;
     guardar();
     renderChipsCarga(); renderCarga();
-    toast('Liquidación guardada');
+    toast(creados>0 ? 'Liquidación guardada · vale de '+money(creados)+' para la quincena siguiente' : 'Liquidación guardada');
   }
 
   // Imprime, uno por hoja: comprobante de quincena + el de préstamo y/o vale
   // con el saldo que queda, si esta quincena se descontó algo.
   function imprimirCarga(){
+    if(!resolverExcedentesAntes(imprimirCarga)) return;
     const e=emp(empActivo), p=periodoActual();
     const q=leerFicha();
     const r=calcularEmpleado(e,q);
@@ -2579,7 +2723,7 @@ const App = (function(){
   }
 
   return { init, irA, calc,
-           selEmpCarga, setDiasLabCarga, calcCarga, toggleVacCarga, guardarCarga, corregirItemCarga, confirmarDescuentoCarga,
+           selEmpCarga, setDiasLabCarga, calcCarga, toggleVacCarga, guardarCarga, corregirItemCarga, confirmarDescuentoCarga, focoDescuentoCarga,
            setDescuentoCarga, imprimirCarga, cambiarPeriodo, nuevoPeriodo, setEmp, setComida,
            setRecibo, setReciboAdmin, reciboVac, quitarVac, setMesAdminRecibos,
            toggleVac,
