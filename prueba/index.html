@@ -1,0 +1,2759 @@
+<!DOCTYPE html>
+<!--
+  EG Quincenas — Parte B de sueldos · E.G. Corrugados
+  Versión Microsoft 365: los datos viven en el OneDrive de EG y para entrar
+  hay que iniciar sesión. No hay ninguna dirección de datos dentro del código.
+  Aplicación hecha por Raquel Cacavelos.
+
+  En memoria de mi papá, Gerardo, analista programador,
+  que me enseñó que las producciones propias se firman.
+-->
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quincenas · EG Corrugados</title>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"
+        integrity="sha384-B5PXeUfgiegchZiX5iMRssMrHd9NfPhFnITob1HyW1CY76udptWpBsniaDsH/+BY"
+        crossorigin="anonymous"></script>
+<style>
+:root{
+  --tinta:#1a2b34;        /* azul pizarra oscuro */
+  --tinta-2:#33474f;
+  --papel:#f0ebe0;        /* cartón claro */
+  --papel-2:#e4dccb;
+  --carton:#c8853f;       /* corrugado / kraft */
+  --carton-osc:#a86a2b;
+  --verde:#3f7d5a;
+  --verde-bg:#e3efe7;
+  --rojo:#b0483c;
+  --rojo-bg:#f4e5e2;
+  --ambar:#c98a1e;
+  --ambar-bg:#f7edd5;
+  --linea:#cdc3af;
+  --linea-fuerte:#b3a689;
+  --sombra:0 1px 3px rgba(26,43,52,.12), 0 1px 2px rgba(26,43,52,.08);
+  --sombra-alta:0 4px 16px rgba(26,43,52,.16);
+  --r:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--papel);color:var(--tinta);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+body{max-width:1000px;margin:0 auto;padding:0 16px 60px}
+h1,h2,h3{font-weight:600;letter-spacing:-.01em}
+button{font-family:inherit;cursor:pointer}
+input,select{font-family:inherit;font-size:14px}
+.oculto{display:none!important}
+
+/* ---------- Encabezado ---------- */
+header{position:sticky;top:0;z-index:40;background:var(--tinta);
+  margin:0 -16px 0;padding:12px 16px;box-shadow:var(--sombra)}
+.hd-fila{display:flex;align-items:center;gap:12px;max-width:1000px;margin:0 auto}
+.hd-logo{width:38px;height:38px;border-radius:9px;background:var(--carton);
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  font-weight:700;color:#fff;font-size:18px;letter-spacing:-.03em}
+.hd-tit{color:var(--papel);font-size:16px;font-weight:600;line-height:1.15}
+.hd-sub{color:#9fb0b8;font-size:12px}
+.hd-per{margin-left:auto;display:flex;align-items:center;gap:8px}
+.hd-per select{background:var(--tinta-2);color:var(--papel);border:1px solid #46606a;
+  border-radius:8px;padding:7px 10px;max-width:210px}
+
+/* ---------- Navegación por pestañas ---------- */
+nav{display:flex;gap:2px;margin:0 -16px 18px;padding:0 10px;background:var(--tinta-2);
+  overflow-x:auto;scrollbar-width:none}
+/* Barra de período activo — bien visible en todas las pestañas */
+.periodo-activo{background:var(--verde,#1f5c3d);color:#fff;text-align:center;
+  font-weight:700;font-size:15px;letter-spacing:.2px;padding:10px 14px;border-radius:10px;
+  margin:0 0 16px;box-shadow:var(--sombra);display:flex;align-items:center;
+  justify-content:center;gap:8px}
+.periodo-activo .pin{font-size:16px}
+.periodo-activo .et{font-weight:500;opacity:.85;font-size:13px}
+@media print{.periodo-activo{display:none}}
+nav::-webkit-scrollbar{display:none}
+.tab{background:none;border:none;color:#a8b9c0;padding:12px 14px;font-size:13.5px;
+  font-weight:500;white-space:nowrap;border-bottom:3px solid transparent;transition:.15s}
+.tab:hover{color:var(--papel)}
+.tab.on{color:#fff;border-bottom-color:var(--carton)}
+
+/* ---------- Tarjetas ---------- */
+.card{background:#fff;border:1px solid var(--linea);border-radius:var(--r);
+  box-shadow:var(--sombra);margin-bottom:16px;overflow:hidden}
+.card-cab{padding:14px 18px;border-bottom:1px solid var(--linea);
+  display:flex;align-items:center;gap:12px;background:var(--papel-2)}
+.card-cab h2{font-size:16px}
+.card-cab .sub{font-size:12.5px;color:var(--tinta-2);opacity:.8}
+.card-cuerpo{padding:18px}
+
+/* ---------- Menú inicio ---------- */
+.grid-menu{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px}
+.menu-item{background:#fff;border:1px solid var(--linea);border-radius:var(--r);
+  padding:16px;text-align:left;transition:.15s;box-shadow:var(--sombra)}
+.menu-item:hover{border-color:var(--carton);box-shadow:var(--sombra-alta);transform:translateY(-1px)}
+.menu-item .ico{width:38px;height:38px;border-radius:9px;background:var(--papel-2);
+  display:flex;align-items:center;justify-content:center;font-size:20px;margin-bottom:10px}
+.menu-item .t{font-weight:600;font-size:14.5px;display:block}
+.menu-item .d{font-size:12px;color:var(--tinta-2);opacity:.75}
+
+/* ---------- Formularios ---------- */
+.campo{display:flex;flex-direction:column;gap:3px}
+.campo label{font-size:12px;color:var(--tinta-2);font-weight:500}
+.campo input,.campo select{border:1px solid var(--linea-fuerte);border-radius:7px;
+  padding:8px 10px;background:#fff;color:var(--tinta);width:100%}
+.campo input:focus,.campo select:focus{outline:2px solid var(--carton);outline-offset:-1px;border-color:var(--carton)}
+.campo input[readonly]{background:var(--papel-2);color:var(--tinta-2)}
+.grid-campos{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+
+/* ---------- Chips empleados ---------- */
+.tab.vieja{opacity:.45;font-size:12.5px}
+.tab.vieja:hover{opacity:.8}
+.tab.vieja.on{opacity:1}
+.tab-sep{align-self:center;color:#a8b9c0;opacity:.5;font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;padding:0 8px 0 14px;white-space:nowrap}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:4px}
+.chip{border:1px solid var(--linea-fuerte);background:#fff;border-radius:20px;
+  padding:7px 15px;font-size:13.5px;font-weight:500;color:var(--tinta-2);transition:.12s}
+.chip:hover{border-color:var(--carton)}
+.chip.on{background:var(--tinta);color:#fff;border-color:var(--tinta)}
+.chip .pt{display:inline-block;width:7px;height:7px;border-radius:50%;margin-left:6px;background:var(--verde)}
+.chip.pend .pt{background:var(--linea-fuerte)}
+
+/* ---------- Liquidación ---------- */
+.liq{background:var(--papel);border-radius:var(--r);padding:14px 16px;margin-top:4px}
+.liq-fila{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;font-size:14px}
+.liq-fila .cc{color:var(--tinta-2)}
+.liq-fila .nota{font-size:11.5px;color:#8a7d63;margin-left:6px}
+.liq-fila .vv{font-variant-numeric:tabular-nums;font-weight:500}
+.liq-sep{border-top:1px solid var(--linea-fuerte);margin:4px 0}
+.liq-fila.desc .cc,.liq-fila.desc .vv{color:var(--rojo)}
+.liq-fila.tot{border-top:2px solid var(--tinta);margin-top:5px;padding-top:9px}
+.liq-fila.tot .cc{font-weight:700;font-size:15px;color:var(--tinta)}
+.liq-fila.tot .vv{font-weight:700;font-size:19px;color:var(--tinta)}
+.badge-ok{font-size:11.5px;background:var(--verde-bg);color:var(--verde);padding:2px 8px;border-radius:12px;font-weight:600}
+.badge-no{font-size:11.5px;background:var(--rojo-bg);color:var(--rojo);padding:2px 8px;border-radius:12px;font-weight:600}
+
+/* ---------- Botones ---------- */
+.btn{background:var(--carton);color:#fff;border:none;border-radius:8px;
+  padding:9px 16px;font-size:14px;font-weight:600;transition:.15s}
+.btn:hover{background:var(--carton-osc)}
+.btn.sec{background:#fff;color:var(--tinta);border:1px solid var(--linea-fuerte)}
+.btn.sec:hover{background:var(--papel-2)}
+.btn.chico{padding:6px 12px;font-size:13px}
+.btn-fila{display:flex;gap:10px;margin-top:16px}
+
+/* ---------- Tablas ---------- */
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+thead th{background:var(--papel-2);text-align:right;padding:10px 10px;font-weight:600;
+  color:var(--tinta-2);border-bottom:1px solid var(--linea-fuerte)}
+thead th:first-child{text-align:left}
+tbody td{padding:9px 10px;text-align:right;border-bottom:1px solid var(--linea);
+  font-variant-numeric:tabular-nums}
+tbody td:first-child{text-align:left;font-weight:500}
+tbody tr:last-child td{border-bottom:none}
+.t-total td{background:var(--papel-2);font-weight:700;border-top:2px solid var(--linea-fuerte)}
+
+/* ---------- KPIs ---------- */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:#fff;border:1px solid var(--linea);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sombra)}
+.kpi .k{font-size:12.5px;color:var(--tinta-2)}
+.kpi .v{font-size:23px;font-weight:700;margin-top:3px;font-variant-numeric:tabular-nums}
+.kpi.rojo .v{color:var(--rojo)}
+.kpi.ambar .v{color:var(--ambar)}
+.kpi.verde .v{color:var(--verde)}
+
+.aviso{background:var(--ambar-bg);border:1px solid #e6cf94;border-radius:8px;
+  padding:10px 14px;font-size:13px;color:#7a5a12;margin-bottom:14px}
+.vacio{text-align:center;padding:40px 20px;color:var(--tinta-2)}
+.vacio .ico{font-size:38px;opacity:.4;margin-bottom:10px}
+
+@media(max-width:560px){
+  .hd-per select{max-width:150px}
+  .liq-fila .nota{display:none}
+}
+/* ---------- Pantalla única de carga (nueva) ---------- */
+.carga-cols{display:grid;grid-template-columns:1fr 330px;gap:18px;align-items:start}
+@media (max-width:980px){ .carga-cols{grid-template-columns:1fr} }
+.carga-bloque{border:1px solid var(--linea);border-radius:10px;padding:13px 15px;margin-bottom:14px;background:#fff}
+.carga-bloque > h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--tinta-2);margin-bottom:10px;font-weight:700}
+.carga-liq{position:sticky;top:14px}
+.carga-item{border:1px solid var(--linea);border-radius:9px;padding:10px 12px;margin-bottom:10px;background:var(--papel-2)}
+.carga-item .cab{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13.5px;font-weight:600}
+.carga-queda{font-size:12.5px;color:var(--tinta-2)}
+.carga-neto{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  margin-top:10px;padding-top:10px;border-top:1px solid var(--linea);font-size:13.5px}
+.carga-neto.falta{color:var(--tinta-2)}
+.hint-carga{font-size:11.5px;color:var(--tinta-2);margin-top:6px;line-height:1.5}
+.carga-vacrec{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;padding:8px 10px;background:var(--papel-2);border-radius:8px;font-size:13px}
+.carga-exc{margin-top:8px;padding:7px 10px;border-radius:7px;background:#fff4e0;border:1px solid #e3c48a;font-size:12.5px;color:#6b4a12}
+.modal-exc{position:fixed;inset:0;background:rgba(20,30,35,.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px}
+.modal-exc-caja{background:#fff;border-radius:12px;max-width:470px;width:100%;padding:20px 22px;box-shadow:0 10px 40px rgba(0,0,0,.25);font-size:14.5px;line-height:1.5}
+.modal-exc-caja p{margin:6px 0}
+.modal-exc-tit{font-size:16.5px;font-weight:700;margin-bottom:8px;color:#8a3d12}
+.modal-exc-botones{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.modal-exc-botones .btn{white-space:normal;text-align:left;line-height:1.35}
+.mini{font-size:10.5px;color:var(--tinta-2);font-weight:400}
+@media print{ .carga-liq{position:static} }
+/* ---------- Comprobante ---------- */
+.comprobante{background:#fff;border:1px solid var(--linea-fuerte);border-radius:var(--r);
+  padding:24px 28px;margin-bottom:16px;position:relative;box-shadow:var(--sombra)}
+.comp-cab{display:flex;justify-content:space-between;align-items:flex-start;
+  border-bottom:2px solid var(--tinta);padding-bottom:12px;margin-bottom:14px;
+  /* lugar para el botón "Solo este", que va absoluto en esa esquina y tapaba el apellido */
+  padding-right:104px}
+@media (max-width:640px){ .comp-cab{padding-right:96px} }
+.comp-emp{font-size:16px;font-weight:700;color:var(--tinta)}
+.comp-tip{font-size:12px;color:var(--tinta-2);margin-top:2px}
+.comp-tabla{width:100%;font-size:13.5px}
+.comp-tabla td{padding:5px 0;border:none;text-align:left}
+.comp-tabla td:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.comp-tabla .comp-desc td{color:var(--rojo)}
+.comp-tabla .comp-sub td{border-top:1px solid var(--linea-fuerte);padding-top:8px;font-weight:600}
+.comp-tabla .comp-tot td{border-top:2px solid var(--tinta);padding-top:9px;font-weight:700;font-size:15px}
+.comp-firmas{display:flex;justify-content:space-between;margin-top:34px;gap:40px}
+.comp-firma{flex:1;text-align:center;border-top:1px solid var(--tinta-2);padding-top:6px;
+  font-size:11px;color:var(--tinta-2)}
+.comp-btn{position:absolute;top:16px;right:20px}
+
+@media print{
+  header,nav,.btn-fila,.no-print{display:none!important}
+  body{max-width:none;padding:0}
+  .card{box-shadow:none;border:1px solid #999}
+  input{border:none!important;padding:0!important;background:none!important;width:auto!important;
+    color:#1a2b34!important;font-size:13px!important;-webkit-appearance:none;-moz-appearance:textfield;appearance:none}
+  input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  #comprobantes{display:block}
+  .comprobante{border:1px solid #333;box-shadow:none;margin:0 0 8px;padding:12px 16px;
+    break-inside:avoid;page-break-inside:avoid}
+  .comp-firmas{margin-top:16px}
+  /* al imprimir no está el botón, el encabezado usa todo el ancho */
+  .comp-cab{padding-right:0}
+  @page{margin:11mm}
+  /* Salto de página controlado según "por hoja" */
+  .ph1 .comprobante{page-break-after:always}
+  .ph2 .comprobante:nth-child(2n){page-break-after:always}
+  .ph3 .comprobante:nth-child(3n){page-break-after:always}
+  .ph4 .comprobante:nth-child(4n){page-break-after:always}
+  .comprobante:last-child{page-break-after:auto!important}
+}
+
+/* Firma de autoría, al pie de todas las pantallas */
+footer.firma{
+  max-width:1100px;
+  margin:30px auto 20px;
+  padding:14px 18px 0;
+  border-top:1px solid var(--papel-2);
+  text-align:center;
+  font-size:12px;
+  line-height:1.7;
+  color:var(--tinta-2);
+  opacity:.8;
+}
+footer.firma strong{ color:var(--tinta); font-weight:600; }
+@media print{ footer.firma{display:none} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hd-fila">
+    <div class="hd-logo">EG</div>
+    <div>
+      <div class="hd-tit">Quincenas · Parte B</div>
+      <div class="hd-sub">EG Corrugados <span id="syncBadge" style="font-size:11px;margin-left:6px;color:#8a7d63">💾 Local</span><span id="usuarioBadge" style="font-size:11px;margin-left:8px;color:#8a7d63"></span></div>
+    </div>
+    <div class="hd-per">
+      <select id="selPeriodo" onchange="App.cambiarPeriodo(this.value)"></select>
+      <button class="btn chico" onclick="App.nuevoPeriodo()">+ Nueva</button>
+    </div>
+  </div>
+</header>
+
+<nav id="nav"></nav>
+
+<div id="periodoActivoBar"></div>
+
+<main id="vista"></main>
+
+<footer class="firma">
+  Hecha por <strong>Raquel Cacavelos</strong> · E.G. Corrugados
+</footer>
+
+<script>
+/* ---------------------------------------------------------------
+   EG Quincenas — Raquel Cacavelos.
+
+   Para mi papá, Gerardo, analista programador.
+   Él me enseñó que las producciones propias se firman: que el que
+   hace una cosa pone el nombre abajo y responde por lo que hizo.
+   Esta app la escribí con eso en la cabeza. Va firmada, pa.
+   --------------------------------------------------------------- */
+
+// Datos base de arranque, tomados del Excel PLANILLAS_SUELDOS_RA.xlsx
+// Estos valores son editables desde la pantalla de Ajustes.
+const EMPLEADOS_BASE = [
+  { id: 'duarte',   apellido: 'Duarte',   categoria: 3, valorHora: 5478.71, viatico: 20.00,    sueldoBruto: 621285.71, adelantoFutAum: 3500,  especial: false },
+  { id: 'longoni',  apellido: 'Longoni',  categoria: 2, valorHora: 6081.37, viatico: 5293.14,  sueldoBruto: 676491.60, adelantoFutAum: 0,     especial: false },
+  { id: 'gomez',    apellido: 'Gomez',    categoria: 1, valorHora: 6811.14, viatico: 5293.14,  sueldoBruto: 816519.46, adelantoFutAum: 15000, especial: false },
+  { id: 'dittrich', apellido: 'Dittrich', categoria: 1, valorHora: 6811.14, viatico: 2005.60,  sueldoBruto: 809163.43, adelantoFutAum: 15000, especial: false },
+  { id: 'escalada', apellido: 'Escalada', categoria: 1, valorHora: 6811.14, viatico: 5293.14,  sueldoBruto: 868011.68, adelantoFutAum: 0,     especial: true,
+    plusTecho: 280000, hsExtrasFijas: 2 }
+];
+const COMIDA_POR_DIA = 2500;
+const FACTOR_HORA_EXTRA = 1.5;
+const FACTOR_PRESENTISMO = 0.17;
+
+// ============ MOTOR DE CÁLCULO — Quincenas Parte B ============
+// Reglas confirmadas con EG y verificadas contra el Excel.
+function calcularEmpleado(emp, q) {
+  // emp: datos base del empleado (valorHora, viatico, sueldoBruto, etc.)
+  // q: datos de la quincena para ese empleado
+  //    { diasLaborables, diasVino, hsExtras, valorHora, sueldoBruto, viatico,
+  //      descuentoVale, descuentoPrestamo }
+  const valorHora   = num(q.valorHora ?? emp.valorHora);
+  const sueldoBruto = num(q.sueldoBruto ?? emp.sueldoBruto);
+  const viatico     = num(q.viatico ?? emp.viatico);
+  const diasLab     = num(q.diasLaborables);
+  const diasVino    = num(q.diasVino);
+  // Días de comida: por defecto igual a los días que vino, pero editable
+  // (a veces vino X días pero se le pagó la comida por menos días).
+  const diasComida  = (q.diasComida !== undefined && q.diasComida !== null && q.diasComida !== '')
+                        ? num(q.diasComida) : diasVino;
+  const hsExtras    = num(q.hsExtras);
+  // Vacaciones: si está de vacaciones, los días que no vino son vacaciones (no faltas),
+  // por lo que cobra el presentismo completo igual.
+  const deVacaciones = !!q.vacaciones;
+  const diasVacaciones = num(q.diasVacaciones);
+  const hsExtrasVac = num(q.hsExtrasVacaciones);
+  const vinoCompleto = deVacaciones ? true : (diasLab > 0 && diasVino >= diasLab);
+
+  const r = { apellido: emp.apellido, especial: !!emp.especial };
+  // Valores base del desarrollo: no intervienen en ningún cálculo, se exponen
+  // para poder controlar en el comprobante cómo se llegó a cada resultado.
+  r.baseSueldoBruto = sueldoBruto;
+  r.baseValorHora   = valorHora;
+  r.baseHsExtras    = hsExtras;
+  r.baseDiasVino    = diasVino;
+  r.baseDiasLab     = diasLab;
+  r.baseViatico     = viatico;
+
+  if (!emp.especial) {
+    // ---- Empleado normal ----
+    r.hsExtrasMonto = valorHora * FACTOR_HORA_EXTRA * hsExtras;
+    r.viaticos      = viatico * diasVino;
+    r.comida        = COMIDA_POR_DIA * diasComida;
+    r.adelanto      = num(emp.adelantoFutAum);
+    // Presentismo = (sueldo bruto + hs extras) * 0,17, solo si vino completo
+    r.presentismo   = vinoCompleto ? (sueldoBruto + r.hsExtrasMonto) * FACTOR_PRESENTISMO : 0;
+    r.subtotal      = r.hsExtrasMonto + r.viaticos + r.presentismo + r.comida + r.adelanto;
+    r.plusMonto = 0; r.plusPresentismo = 0;
+  } else {
+    // ---- Escalada (caso especial) ----
+    const fijas = num(emp.hsExtrasFijas);           // 2 hs fijas siempre
+    r.baseHsExtrasFijas = fijas;
+    r.hsExtrasFijasMonto = fijas * (valorHora * FACTOR_HORA_EXTRA);
+    const hsNormales = Math.max(0, hsExtras - fijas); // las que exceden de 2
+    r.hsExtrasMonto = (valorHora * FACTOR_HORA_EXTRA) * hsNormales;
+    r.viaticos = viatico * diasVino;
+    r.comida   = COMIDA_POR_DIA * diasComida;
+    r.adelanto = num(emp.adelantoFutAum);
+    // Presentismo común: (hs extras normales + sueldo bruto) * 0,17, solo si vino completo
+    r.presentismo = vinoCompleto ? (r.hsExtrasMonto + sueldoBruto) * FACTOR_PRESENTISMO : 0;
+    // Plus (techo 280.000): presentismo del plus = techo*0,17; resto = techo - eso
+    const techo = num(emp.plusTecho);
+    r.plusPresentismo = vinoCompleto ? techo * FACTOR_PRESENTISMO : 0; // 47.600 si vino
+    r.plusResto = techo - (techo * FACTOR_PRESENTISMO);                // 232.400 siempre
+    r.plusMonto = r.plusResto + r.plusPresentismo;                     // 280.000 o 232.400
+    r.subtotal = r.hsExtrasFijasMonto + r.hsExtrasMonto + r.viaticos +
+                 r.presentismo + r.comida + r.adelanto + r.plusMonto;
+  }
+
+  r.descuentoVale     = num(q.descuentoVale);
+  r.descuentoPrestamo = num(q.descuentoPrestamo);
+
+  // Bloque de vacaciones (aparte, se suma al final)
+  r.deVacaciones = deVacaciones;
+  r.vacPeriodo = q.vacPeriodo || '';
+  r.diasVacaciones = diasVacaciones;
+  r.hsExtrasVacaciones = hsExtrasVac;
+  r.valorHsExtraVac = valorHora * FACTOR_HORA_EXTRA;      // igual que una hs extra
+  r.totalVacaciones = deVacaciones ? r.valorHsExtraVac * hsExtrasVac : 0;
+
+  // Total = subtotal Parte B − descuentos + vacaciones
+  r.total = r.subtotal - r.descuentoVale - r.descuentoPrestamo + r.totalVacaciones;
+  r.vinoCompleto = vinoCompleto;
+
+  // Para SAC: hs extras (normales + fijas de Escalada) + presentismo común + hs extras de vacaciones.
+  // NO incluye el presentismo del plus de Escalada.
+  const hsExtrasTotal = (r.hsExtrasMonto || 0) + (r.hsExtrasFijasMonto || 0);
+  const presentismoTotal = (r.presentismo || 0);
+  r.baseSac = hsExtrasTotal + presentismoTotal + (r.totalVacaciones || 0);
+  return r;
+}
+
+function num(x){ const n = parseFloat(x); return isNaN(n) ? 0 : n; }
+
+
+
+// ============================================================
+//  Quincenas Parte B — EG Corrugados
+//  Toda la data se guarda en localStorage del navegador.
+// ============================================================
+
+
+const App = (function(){
+  // Esta versión guarda los datos en el OneDrive de EG, no en Google Sheets.
+  // Clave propia de caché local, para no mezclarse con la versión que usa la planilla.
+  const LS = 'eg_quincenas_365';
+  const MS_CLIENTE   = '4dfd2f42-3c4e-4071-b364-1747688ef8da';
+  const MS_INQUILINO = 'f943f6a4-62dd-4a9b-ba93-c2640a30c7cf';
+  const MS_PERMISOS  = ['User.Read','Files.ReadWrite.All'];
+  const GRAPH        = 'https://graph.microsoft.com/v1.0';
+  const RUTA_DATOS     = '/EG Apps/Quincenas/quincenas.json';
+  const RUTA_RESPALDOS = '/EG Apps/Quincenas/Respaldos';
+  const MAX_RESPALDOS  = 100;
+  const LS_URL_GOOGLE  = 'eg_url_sheet';   // solo para traer/comparar; NO viaja en el código
+  const ADMIN_BASE = [
+    { nombre: 'Bianchini Emilio', gerente: false },
+    { nombre: 'Fotini Alejandro', gerente: false },
+    { nombre: 'Cacavelos Raquel', gerente: false },
+    { nombre: 'Eduardo Gutman',   gerente: true  }
+  ];
+  let db = cargar();
+  let periodoActivo = null;
+  let empActivo = null;
+  let tabActiva = 'inicio';
+  let mesAdminRecibos = null;
+  let sacAnio = null, sacCuota = null, sacEmpSel = null;
+  let syncEstado = 'local'; // 'local' | 'sincronizando' | 'ok' | 'error'
+  // Solo se escribe en la planilla si ANTES se pudo leer. Sin esto, una lectura
+  // fallida arrancaba con la memoria vacia y pisaba los datos de la nube.
+  let nubeLeida = false;
+
+  // ---------- Persistencia ----------
+  function cargar(){
+    try{
+      const raw = localStorage.getItem(LS);
+      if(raw){
+        const d=JSON.parse(raw);
+        if(!d.sacBlanco) d.sacBlanco={};
+        if(!d.admin || d.admin.length===0) d.admin=JSON.parse(JSON.stringify(ADMIN_BASE));
+        return d;
+      }
+    }catch(e){}
+    // estructura inicial
+    return {
+      empleados: JSON.parse(JSON.stringify(EMPLEADOS_BASE)),
+      config: { comidaPorDia: COMIDA_POR_DIA },
+      periodos: {},   // clave "2026-07-2" -> { etiqueta, diasLaborables, datos:{empId:{...}} }
+      prestamos: {},  // empId -> [ {tipo, desc, saldo, cuota, ...} ]
+      admin: JSON.parse(JSON.stringify(ADMIN_BASE)), // administrativos mensuales (bruto/neto por mes en sacBlanco)
+      sacBlanco: {}   // clave "2026-01" -> { empId: { bruto, neto, ajuste, vac:{desde,hasta,monto} } }
+    };
+  }
+  function guardar(){
+    try{ localStorage.setItem(LS, JSON.stringify(db)); }
+    catch(e){ alert('No se pudo guardar: '+e.message); }
+    // Además, guardar en OneDrive (con debounce y todas las protecciones).
+    guardarEnNube();
+  }
+
+  // ============================================================
+  //  Datos en OneDrive (Microsoft 365), con inicio de sesión.
+  //  Mantiene TODAS las protecciones de la versión anterior:
+  //   · nubeLeida: no se escribe NUNCA si antes no se pudo leer.
+  //   · Archivo inexistente NO significa "base vacía": no se escribe nada
+  //     hasta que Raquel elija explícitamente traer o importar los datos.
+  //   · Error, archivo corrupto, archivo vacío o falta de sesión = falla.
+  //   · Antes de sobrescribir se guarda una copia con fecha en Respaldos.
+  // ============================================================
+  let msalApp=null, cuentaMS=null, eTagActual=null, contenidoNube=null;
+  let estadoNube='', ultimoError='';
+
+  function marcarSync(estado){
+    syncEstado = estado;
+    const b = document.getElementById('syncBadge');
+    if(!b) return;
+    const map = {
+      local:        {t:'💾 Local',        c:'#8a7d63'},
+      sincronizando:{t:'☁ Sincronizando…', c:'#c08a2d'},
+      ok:           {t:'☁ Sincronizado',  c:'#3a7d44'},
+      error:        {t:"⚠ Sin conexión — no se guarda", c:"#b3402f"}
+    };
+    const m = map[estado]||map.local;
+    b.textContent = m.t; b.style.color = m.c;
+  }
+  function mostrarUsuario(){
+    const u=document.getElementById('usuarioBadge'); if(!u) return;
+    u.textContent = cuentaMS ? ('· ' + (cuentaMS.username || cuentaMS.name || '')) : '';
+  }
+
+  // ---------- Inicio de sesión ----------
+  function uriDeRetorno(){ return (location.origin + location.pathname).replace(/index\.html$/,''); }
+  async function iniciarAuth(){
+    if(typeof msal === 'undefined'){ estadoNube='sin-msal'; return false; }
+    if(!msalApp){
+      msalApp = new msal.PublicClientApplication({
+        auth:{ clientId:MS_CLIENTE, authority:'https://login.microsoftonline.com/'+MS_INQUILINO, redirectUri:uriDeRetorno() },
+        cache:{ cacheLocation:'localStorage' }
+      });
+      await msalApp.initialize();
+    }
+    try{ const r = await msalApp.handleRedirectPromise(); if(r && r.account) cuentaMS = r.account; }catch(e){ ultimoError = e.message; }
+    if(!cuentaMS){ const cs = msalApp.getAllAccounts(); if(cs && cs.length) cuentaMS = cs[0]; }
+    if(cuentaMS) msalApp.setActiveAccount(cuentaMS);
+    return !!cuentaMS;
+  }
+  async function iniciarSesion(){
+    if(!msalApp){ await iniciarAuth(); }
+    if(!msalApp){ alert('No se pudo cargar el inicio de sesión de Microsoft. Revisá la conexión a internet y volvé a cargar la página.'); return; }
+    try{ await msalApp.loginRedirect({ scopes: MS_PERMISOS }); }
+    catch(e){ alert('No se pudo iniciar sesión: ' + e.message); }
+  }
+  async function cerrarSesion(){
+    if(!msalApp) return;
+    if(!confirm('¿Cerrar la sesión de Microsoft?\n\nLos datos quedan guardados en OneDrive. Para volver a verlos vas a tener que iniciar sesión de nuevo.')) return;
+    await msalApp.logoutRedirect({ account: cuentaMS });
+  }
+  // Devuelve el token o null. Nunca abre una ventana de login por su cuenta:
+  // si no hay token, la app queda en modo solo lectura y no escribe nada.
+  async function obtenerToken(){
+    if(!msalApp || !cuentaMS) return null;
+    try{ const r = await msalApp.acquireTokenSilent({ scopes: MS_PERMISOS, account: cuentaMS }); return r.accessToken; }
+    catch(e){ ultimoError = e.message; return null; }
+  }
+
+  // ---------- OneDrive ----------
+  function rutaApi(ruta){ return GRAPH + '/me/drive/root:' + ruta.split('/').map(encodeURIComponent).join('/'); }
+  function graph(token, url, opciones){
+    const o = Object.assign({}, opciones||{});
+    o.headers = Object.assign({ Authorization:'Bearer '+token }, o.headers||{});
+    return fetch(url, o);
+  }
+  async function asegurarCarpetas(token){
+    const partes = RUTA_RESPALDOS.split('/').filter(Boolean);
+    let acum='';
+    for(const nombre of partes){
+      const padre = acum==='' ? (GRAPH+'/me/drive/root/children') : (rutaApi(acum)+':/children');
+      try{
+        await graph(token, padre, { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ name:nombre, folder:{}, '@microsoft.graph.conflictBehavior':'fail' }) });
+      }catch(e){ /* si ya existe, Graph responde 409 y seguimos */ }
+      acum = acum + '/' + nombre;
+    }
+  }
+
+  // Trae el db de OneDrive al abrir. Si no se puede leer, NO se habilita escribir.
+  function cargarDeNube(cb){
+    marcarSync('sincronizando');
+    (async function(){
+      try{
+        const token = await obtenerToken();
+        if(!token){ estadoNube='sin-sesion'; marcarSync('error'); if(cb)cb(); return; }
+        const meta = await graph(token, rutaApi(RUTA_DATOS));
+        if(meta.status===404){ estadoNube='sin-archivo'; marcarSync('error'); if(cb)cb(); return; }
+        if(!meta.ok) throw new Error('HTTP '+meta.status+' al buscar el archivo');
+        const info = await meta.json();
+        eTagActual = info.eTag || null;
+        const r = await graph(token, rutaApi(RUTA_DATOS)+':/content');
+        if(!r.ok) throw new Error('HTTP '+r.status+' al leer el archivo');
+        const txt = await r.text();
+        if(!txt || !txt.trim().length) throw new Error('el archivo está vacío');
+        const dNube = JSON.parse(txt);
+        if(!dNube || typeof dNube!=='object' || !dNube.periodos || !dNube.empleados) throw new Error('el archivo no tiene el formato esperado');
+        if(!dNube.sacBlanco) dNube.sacBlanco={};
+        if(!dNube.admin || dNube.admin.length===0) dNube.admin=JSON.parse(JSON.stringify(ADMIN_BASE));
+        db = dNube;
+        contenidoNube = JSON.stringify(db);
+        localStorage.setItem(LS, contenidoNube);
+        nubeLeida = true; estadoNube='ok'; marcarSync('ok');
+      }catch(e){
+        estadoNube='error'; ultimoError=e.message; marcarSync('error');
+      }
+      if(cb)cb();
+    })();
+  }
+
+  // Guarda el db completo en OneDrive (no bloquea la interfaz).
+  let guardarTimer=null;
+  function guardarEnNube(){
+    if(!nubeLeida){ marcarSync('error'); return; }
+    if(guardarTimer) clearTimeout(guardarTimer);
+    guardarTimer=setTimeout(function(){ escribirEnNube(); }, 800);
+  }
+  async function escribirEnNube(){
+    if(!nubeLeida){ marcarSync('error'); return; }
+    const nuevo = JSON.stringify(db);
+    if(nuevo === contenidoNube){ marcarSync('ok'); return; }   // nada cambió: ni respaldo ni escritura
+    marcarSync('sincronizando');
+    try{
+      const token = await obtenerToken();
+      if(!token) throw new Error('no hay sesión');
+      await asegurarCarpetas(token);
+      if(contenidoNube) await respaldar(token, contenidoNube);
+      const headers = {'Content-Type':'application/json'};
+      if(eTagActual) headers['If-Match'] = eTagActual;
+      const r = await graph(token, rutaApi(RUTA_DATOS)+':/content', { method:'PUT', headers:headers, body:nuevo });
+      if(r.status===412 || r.status===409){
+        nubeLeida=false; estadoNube='conflicto'; marcarSync('error');
+        alert('El archivo de OneDrive cambió desde otro lado.\n\nPara no pisar nada, la app dejó de guardar. Volvé a cargar la página (F5) para traer la versión nueva.');
+        return;
+      }
+      if(!r.ok) throw new Error('HTTP '+r.status+' al guardar');
+      const info = await r.json();
+      eTagActual = info.eTag || null;
+      contenidoNube = nuevo;
+      estadoNube='ok'; marcarSync('ok');
+    }catch(e){ estadoNube='error'; ultimoError=e.message; marcarSync('error'); }
+  }
+  // Copia del contenido anterior, con fecha y hora, antes de sobrescribir.
+  async function respaldar(token, contenidoAnterior){
+    const d=new Date(), p=function(n){ return String(n).padStart(2,'0'); };
+    const nombre = 'quincenas-'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+
+                   '_'+p(d.getHours())+'-'+p(d.getMinutes())+'-'+p(d.getSeconds())+'.json';
+    await graph(token, rutaApi(RUTA_RESPALDOS+'/'+nombre)+':/content',
+      { method:'PUT', headers:{'Content-Type':'application/json'}, body:contenidoAnterior });
+    // Dejar solo los últimos MAX_RESPALDOS (los nombres ordenan por fecha).
+    const r = await graph(token, rutaApi(RUTA_RESPALDOS)+':/children?$select=id,name&$top=400');
+    if(!r.ok) return;
+    const j = await r.json();
+    const archivos = (j.value||[]).filter(function(x){ return /^quincenas-.*\.json$/.test(x.name); })
+                                  .sort(function(a,b){ return a.name<b.name?1:-1; });
+    for(let i=MAX_RESPALDOS; i<archivos.length; i++){
+      await graph(token, GRAPH+'/me/drive/items/'+archivos[i].id, { method:'DELETE' });
+    }
+  }
+
+  // ---------- Traer / comparar contra la planilla de Google ----------
+  function pedirUrlGoogle(texto){
+    const guardada = localStorage.getItem(LS_URL_GOOGLE) || '';
+    const u = prompt(texto, guardada);
+    if(u===null) return null;
+    const url = String(u).trim();
+    if(url.indexOf('https://')!==0 || url.indexOf('/exec')<0){
+      alert('Esa no parece la dirección del Apps Script.\n\nTiene que empezar con https:// y terminar en /exec.');
+      return null;
+    }
+    return url;
+  }
+  async function leerDeGoogle(url){
+    const r = await fetch(url, { method:'GET' });
+    const j = await r.json();
+    if(!j || !j.ok || !j.db) throw new Error('la planilla no devolvió datos');
+    const d = JSON.parse(j.db);
+    if(!d || !d.periodos || !d.empleados) throw new Error('el contenido no tiene el formato esperado');
+    return d;
+  }
+  async function traerDesdeGoogle(){
+    const url = pedirUrlGoogle('Pegá la dirección del Apps Script de la planilla (termina en /exec):');
+    if(!url) return;
+    try{
+      const d = await leerDeGoogle(url);
+      const quincenas = Object.keys(d.periodos).length, emps = (d.empleados||[]).length;
+      const aviso = 'Traje de la planilla de Google:\n\n· ' + quincenas + ' quincenas\n· ' + emps + ' empleados\n\n' +
+        (contenidoNube ? 'Esto REEMPLAZA lo que hay hoy en OneDrive.' : 'Esto va a crear el archivo en tu OneDrive.') + '\n\n¿Continuar?';
+      if(!confirm(aviso)) return;
+      localStorage.setItem(LS_URL_GOOGLE, url);
+      if(!d.sacBlanco) d.sacBlanco={};
+      if(!d.admin || d.admin.length===0) d.admin=JSON.parse(JSON.stringify(ADMIN_BASE));
+      db = d;
+      nubeLeida = true;                 // acción explícita de Raquel: recién acá se habilita escribir
+      localStorage.setItem(LS, JSON.stringify(db));
+      await escribirEnNube();
+      if(estadoNube==='ok'){
+        periodoActivo = Object.keys(db.periodos).sort().reverse()[0]; empActivo=null;
+        renderPeriodos(); renderNav(); irA('carga');
+        toast('Datos traídos de Google y guardados en OneDrive');
+      } else {
+        nubeLeida = false;
+        alert('Los datos se trajeron pero NO se pudieron guardar en OneDrive, así que no se escribió nada.\n\nDetalle: ' + ultimoError);
+      }
+    }catch(e){ alert('No se pudo traer de Google: ' + e.message); }
+  }
+  async function compararConGoogle(){
+    const url = pedirUrlGoogle('Pegá la dirección del Apps Script para comparar (termina en /exec):');
+    if(!url) return;
+    try{
+      const enGoogle = JSON.stringify(await leerDeGoogle(url));
+      const token = await obtenerToken();
+      if(!token) throw new Error('no hay sesión de Microsoft');
+      const r = await graph(token, rutaApi(RUTA_DATOS)+':/content');
+      if(r.status===404) throw new Error('todavía no hay archivo en OneDrive');
+      if(!r.ok) throw new Error('HTTP '+r.status+' al leer OneDrive');
+      const enOneDrive = JSON.stringify(JSON.parse(await r.text()));
+      localStorage.setItem(LS_URL_GOOGLE, url);
+      if(enGoogle === enOneDrive){
+        alert('✅ IDÉNTICOS\n\nLo que hay en OneDrive es exactamente lo mismo que en la planilla de Google.\n\n' + enGoogle.length + ' caracteres, carácter por carácter.');
+        return;
+      }
+      const dG = JSON.parse(enGoogle), dO = JSON.parse(enOneDrive);
+      let det = '';
+      ['empleados','admin','config','prestamos','sacBlanco'].forEach(function(k){
+        if(JSON.stringify(dG[k])!==JSON.stringify(dO[k])) det += '\n· ' + k + ': distinto';
+      });
+      const todas = Object.keys(dG.periodos||{}).concat(Object.keys(dO.periodos||{}))
+        .filter(function(v,i,a){ return a.indexOf(v)===i; }).sort();
+      todas.forEach(function(k){
+        const a=JSON.stringify((dG.periodos||{})[k]), b=JSON.stringify((dO.periodos||{})[k]);
+        if(a!==b) det += '\n· quincena ' + k + (a===undefined?': solo en OneDrive':b===undefined?': solo en Google':': distinta');
+      });
+      alert('⚠ DISTINTOS\n\nGoogle: ' + enGoogle.length + ' caracteres\nOneDrive: ' + enOneDrive.length + ' caracteres\n' + det);
+    }catch(e){ alert('No se pudo comparar: ' + e.message); }
+  }
+
+  // Pantalla cuando no se pudo leer (sin sesión, sin archivo, o falla).
+  function pantallaSinDatos(){
+    if(estadoNube==='sin-sesion' || estadoNube==='sin-msal'){
+      const extra = estadoNube==='sin-msal'
+        ? '<br><br>No se pudo cargar el inicio de sesión de Microsoft. Revisá la conexión a internet y volvé a cargar la página (F5).' : '';
+      return '<div class="card"><div class="card-cuerpo"><div class="aviso">' +
+        '<strong>Entrá con tu cuenta de EG Corrugados.</strong><br><br>' +
+        'Los datos de quincenas están en tu OneDrive. Para verlos hay que iniciar sesión.' + extra +
+        '</div><div class="btn-fila"><button class="btn" onclick="App.iniciarSesion()">Iniciar sesión con Microsoft</button></div>' +
+        '</div></div>';
+    }
+    if(estadoNube==='sin-archivo'){
+      return '<div class="card"><div class="card-cuerpo"><div class="aviso">' +
+        '<strong>Todavía no hay datos en OneDrive.</strong><br><br>' +
+        'No se creó ningún archivo ni se guardó nada: la app no inventa una base vacía.<br><br>' +
+        'Elegí de dónde traer los datos. Recién ahí se va a escribir en OneDrive.' +
+        '</div><div class="btn-fila">' +
+        '<button class="btn" onclick="App.traerDesdeGoogle()">⬇ Traer datos desde Google</button>' +
+        '<label class="btn sec" style="display:inline-flex;align-items:center;cursor:pointer">⬆ Restaurar desde archivo' +
+        '<input type="file" accept="application/json" style="display:none" onchange="App.restaurar(this)"></label>' +
+        '</div></div></div>';
+    }
+    if(estadoNube==='conflicto'){
+      return '<div class="card"><div class="card-cuerpo"><div class="aviso">' +
+        '<strong>El archivo de OneDrive cambió desde otro lado.</strong><br><br>' +
+        'La app dejó de guardar para no pisar nada. Volvé a cargar la página (F5).' +
+        '</div></div></div>';
+    }
+    return '<div class="card"><div class="card-cuerpo"><div class="aviso">' +
+      '<strong>No se pudieron leer los datos de OneDrive.</strong><br><br>' +
+      'La app quedó en <strong>modo solo lectura</strong>: no va a guardar nada, para no pisar los datos que ya están guardados.<br><br>' +
+      'Revisá la conexión a internet y volvé a cargar la página (F5).' +
+      (ultimoError ? '<br><br><span class="mini">Detalle: ' + ultimoError + '</span>' : '') +
+      '</div><div class="btn-fila"><button class="btn sec" onclick="location.reload()">Reintentar</button></div></div></div>';
+  }
+
+  // ---------- Utilidades ----------
+  function money(n){
+    return '$'+ (Number(n)||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  function money0(n){
+    return '$'+ Math.round(Number(n)||0).toLocaleString('es-AR');
+  }
+  // Delante de un sustantivo masculino ("mil", "millones", "centavos") se apocopa:
+  // 191.896 es "ciento noventa y UN mil", no "ciento noventa y uno mil".
+  function apocope(s){
+    if(s==='uno') return 'un';
+    if(s.endsWith('veintiuno')) return s.slice(0,-9)+'veintiún';
+    if(s.endsWith('uno')) return s.slice(0,-3)+'un';
+    return s;
+  }
+  // Convierte un número entero a palabras en español (para el vale)
+  function numeroALetras(n){
+    n=Math.round(Number(n)||0);
+    if(n===0) return 'cero';
+    const unidades=['','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve','diez',
+      'once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve','veinte',
+      'veintiuno','veintidós','veintitrés','veinticuatro','veinticinco','veintiséis','veintisiete','veintiocho','veintinueve'];
+    const decenas=['','','','treinta','cuarenta','cincuenta','sesenta','setenta','ochenta','noventa'];
+    const centenas=['','ciento','doscientos','trescientos','cuatrocientos','quinientos','seiscientos','setecientos','ochocientos','novecientos'];
+    function menores1000(x){
+      let t='';
+      if(x===100) return 'cien';
+      const c=Math.floor(x/100), resto=x%100;
+      if(c>0) t+=centenas[c]+(resto>0?' ':'');
+      if(resto<30){ t+=unidades[resto]; }
+      else { const d=Math.floor(resto/10), u=resto%10;
+        t+=decenas[d]+(u>0?' y '+unidades[u]:''); }
+      return t.trim();
+    }
+    let palabras='';
+    const millones=Math.floor(n/1000000);
+    const miles=Math.floor((n%1000000)/1000);
+    const resto=n%1000;
+    if(millones>0){ palabras+= (millones===1?'un millón':apocope(menores1000(millones))+' millones')+' '; }
+    if(miles>0){ palabras+= (miles===1?'mil':apocope(menores1000(miles))+' mil')+' '; }
+    if(resto>0){ palabras+= menores1000(resto); }
+    return palabras.trim();
+  }
+  // Monto completo en palabras, con centavos si los hubiera, listo para el "En letras".
+  function montoEnLetras(n){
+    const v=Math.abs(Number(n)||0);
+    let ent=Math.floor(v);
+    let cent=Math.round((v-ent)*100);
+    if(cent===100){ ent+=1; cent=0; }
+    let t=numeroALetras(ent);
+    if(cent>0) t+=' con '+apocope(numeroALetras(cent))+(cent===1?' centavo':' centavos');
+    return t.charAt(0).toUpperCase()+t.slice(1);
+  }
+  function emp(id){ return db.empleados.find(e=>e.id===id); }
+  function periodoActual(){ return db.periodos[periodoActivo]; }
+
+  function claveNueva(anio,mes,q){ return `${anio}-${String(mes).padStart(2,'0')}-${q}`; }
+  function etiquetaPeriodo(anio,mes,q){
+    const meses=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    return `${q}ª quincena · ${meses[mes]} ${anio}`;
+  }
+
+  // ---------- Arranque ----------
+  function init(){
+    marcarSync('sincronizando');
+    (async function(){
+      const haySesion = await iniciarAuth();
+      mostrarUsuario();
+      if(!haySesion){ if(!estadoNube) estadoNube='sin-sesion'; marcarSync('error'); arrancar(); return; }
+      cargarDeNube(function(){ arrancar(); });
+    })();
+  }
+  function arrancar(){
+    // si no hay ningún período, crear uno por defecto (quincena actual)
+    // Si no se pudo leer OneDrive, NO inventamos un periodo por defecto: ese fue
+    // exactamente el camino que vacio la planilla en agosto.
+    if(!nubeLeida){
+      document.getElementById('vista').innerHTML = pantallaSinDatos();
+      return;
+    }
+    if(Object.keys(db.periodos).length===0){
+      const hoy=new Date();
+      const q = hoy.getDate()<=15?1:2;
+      const clave=claveNueva(hoy.getFullYear(),hoy.getMonth()+1,q);
+      db.periodos[clave]={etiqueta:etiquetaPeriodo(hoy.getFullYear(),hoy.getMonth()+1,q),
+        diasLaborables:12, datos:{}};
+      periodoActivo=clave; guardar();
+    }
+    periodoActivo = periodoActivo || Object.keys(db.periodos).sort().reverse()[0];
+    renderPeriodos(); renderNav(); irA('carga');   // la pantalla única es la principal
+  }
+
+  function renderPeriodos(){
+    const sel=document.getElementById('selPeriodo');
+    const claves=Object.keys(db.periodos).sort().reverse();
+    sel.innerHTML=claves.map(k=>`<option value="${k}" ${k===periodoActivo?'selected':''}>${db.periodos[k].etiqueta}</option>`).join('');
+    // Barra grande de período activo (visible en todas las pestañas)
+    const bar=document.getElementById('periodoActivoBar');
+    if(bar){
+      const p = db.periodos[periodoActivo];
+      if(p){
+        bar.className='periodo-activo';
+        bar.innerHTML=`<span class="pin">📌</span><span class="et">Estás trabajando en</span> ${p.etiqueta}`;
+      } else {
+        bar.className=''; bar.innerHTML='';
+      }
+    }
+  }
+
+  // Las pantallas viejas de carga (Quincenas, Recibos, Préstamos y vales) se retiraron el
+  // 17-sep-2026, después de cargar la 1ª de septiembre entera con ⚡ Carga. Si un tercer
+  // valor en 1 volviera a marcar una pestaña, renderNav la muestra atenuada bajo "anteriores".
+  const TABS=[
+    ['carga','⚡ Carga'],['inicio','Inicio'],
+    ['resumen','Resumen jefe'],['comprobantes','Comprobantes'],['sac','SAC'],['sacblanco','SAC blanco'],['totales','Totales'],['ajustes','Ajustes']
+  ];
+  function renderNav(){
+    document.getElementById('nav').innerHTML = TABS.map(function(fila,i){
+      const id=fila[0], t=fila[1], vieja=fila[2];
+      const primeraVieja = vieja && !(TABS[i-1]||[])[2];
+      const sep = primeraVieja ? '<span class="tab-sep" title="Pantallas anteriores de carga">anteriores</span>' : '';
+      return sep + `<button class="tab ${vieja?'vieja':''} ${id===tabActiva?'on':''}" onclick="App.irA('${id}')">${t}</button>`;
+    }).join('');
+  }
+
+  function irA(tab){
+    // Una pestaña que ya no existe (retirada) lleva a la pantalla principal de carga.
+    if(!TABS.some(function(x){ return x[0]===tab; })) tab='carga';
+    const cambioDeTab = (tab!==tabActiva);
+    const scrollPrev = window.scrollY;
+    tabActiva=tab; renderNav();
+    const v=document.getElementById('vista');
+    if(tab==='inicio') v.innerHTML=vistaInicio();
+    else if(tab==='carga') vistaCarga();
+    else if(tab==='resumen') v.innerHTML=vistaResumen();
+    else if(tab==='comprobantes') v.innerHTML=vistaComprobantes();
+    else if(tab==='sac') v.innerHTML=vistaSac();
+    else if(tab==='sacblanco') v.innerHTML=vistaSacBlanco();
+    else if(tab==='totales') v.innerHTML=vistaTotales();
+    else if(tab==='ajustes') v.innerHTML=vistaAjustes();
+    // Al cambiar de pestaña, subimos arriba. Si es un refresco de la misma pestaña, conservamos el scroll.
+    if(cambioDeTab) window.scrollTo(0,0);
+    else window.scrollTo(0,scrollPrev);
+  }
+
+  // ---------- Pantalla: Inicio ----------
+  function vistaInicio(){
+    const p=periodoActual();
+    const cargados=Object.keys(p.datos||{}).length;
+    return `
+    <div class="card"><div class="card-cuerpo">
+      <div class="aviso">Período activo: <strong>${p.etiqueta}</strong> — ${cargados} de ${db.empleados.length} empleados cargados. Días laborables: ${p.diasLaborables}.</div>
+      <div class="grid-menu">
+        ${menuItem('carga','👥','Cargar quincena','Todo en una pantalla')}
+        ${menuItem('resumen','📋','Resumen jefe','Consolidado y deuda')}
+        ${menuItem('sac','🎁','SAC','Mejor mes ÷ 2')}
+        ${menuItem('carga','💳','Vales y préstamos','Dentro de la pantalla de carga')}
+        ${menuItem('ajustes','⚙️','Ajustes','Valor hora, viáticos')}
+      </div>
+    </div></div>`;
+  }
+  function menuItem(tab,ico,t,d){
+    return `<button class="menu-item" onclick="App.irA('${tab}')">
+      <div class="ico">${ico}</div><span class="t">${t}</span><span class="d">${d}</span></button>`;
+  }
+
+  function setMesAdminRecibos(campo,val){
+    const partes=(mesAdminRecibos||(periodoActivo.split('-').slice(0,2).join('-'))).split('-');
+    if(campo==='mes') partes[1]=String(val).padStart(2,'0');
+    else partes[0]=val;
+    mesAdminRecibos=partes.join('-');
+    refrescarTrasCambio();
+  }
+  function setReciboAdmin(nombre,campo,val){
+    const claveMes = mesAdminRecibos || periodoActivo.split('-').slice(0,2).join('-');
+    db.sacBlanco[claveMes]=db.sacBlanco[claveMes]||{};
+    db.sacBlanco[claveMes]['admin:'+nombre]=db.sacBlanco[claveMes]['admin:'+nombre]||{};
+    db.sacBlanco[claveMes]['admin:'+nombre][campo]=val;
+    guardar(); // no re-renderizamos: el valor ya está en el input
+  }
+  // recibo de vacaciones: claveEmp = empId (quincenal) o 'admin:Nombre'
+  // Convierte una fecha escrita en varios formatos a Date. Acepta:
+  // AAAA-MM-DD, DD/MM/AAAA, DD-MM-AAAA, DD/MM/AA, con espacios de sobra.
+  function parseFecha(s){
+    if(!s) return null;
+    s=String(s).trim();
+    let m;
+    // AAAA-MM-DD  o  AAAA/MM/DD
+    m=s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+    if(m){ const d=new Date(+m[1],+m[2]-1,+m[3]); return isNaN(d)?null:d; }
+    // DD/MM/AAAA  o  DD-MM-AAAA
+    m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if(m){ const d=new Date(+m[3],+m[2]-1,+m[1]); return isNaN(d)?null:d; }
+    // DD/MM/AA  (dos dígitos de año → 20AA)
+    m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2})$/);
+    if(m){ const d=new Date(2000+ +m[3],+m[2]-1,+m[1]); return isNaN(d)?null:d; }
+    // último intento: que lo interprete el navegador
+    const d=new Date(s); return isNaN(d)?null:d;
+  }
+  // normaliza a AAAA-MM-DD para guardar siempre igual
+  function fechaISO(s){
+    const d=parseFecha(s);
+    if(!d) return '';
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+  function quitarVac(claveEmp){
+    const esAdmin = claveEmp.indexOf('admin:')===0;
+    const claveMes = esAdmin ? (mesAdminRecibos || periodoActivo.split('-').slice(0,2).join('-'))
+                             : periodoActivo.split('-').slice(0,2).join('-');
+    const reg=(db.sacBlanco[claveMes]||{})[claveEmp];
+    if(!reg || !reg.vac){ alert('Este empleado no tiene vacaciones cargadas en este período.'); return; }
+    const v=reg.vac;
+    if(!confirm('¿Quitar las vacaciones cargadas'+ (v.desde?(' ('+v.desde+' al '+v.hasta+')'):'') +'? Esta acción no se puede deshacer.')) return;
+    delete db.sacBlanco[claveMes][claveEmp].vac;
+    guardar(); refrescarTrasCambio();
+  }
+  function reciboVac(claveEmp){
+    const esAdmin = claveEmp.indexOf('admin:')===0;
+    const claveMes = esAdmin ? (mesAdminRecibos || periodoActivo.split('-').slice(0,2).join('-'))
+                             : periodoActivo.split('-').slice(0,2).join('-');
+    const reg=(db.sacBlanco[claveMes]||{})[claveEmp]||{};
+    const vac=reg.vac||{};
+    const desdeIn=prompt('Recibo de VACACIONES — fecha DESDE (podés escribir 10/08/2026 o 2026-08-10):', vac.desde||'');
+    if(desdeIn===null) return;
+    const hastaIn=prompt('Recibo de VACACIONES — fecha HASTA (podés escribir 16/08/2026 o 2026-08-16):', vac.hasta||'');
+    if(hastaIn===null) return;
+    const bruto=prompt('BRUTO remunerativo del recibo de vacaciones (para el SAC):', vac.monto||'');
+    if(bruto===null) return;
+    const neto=prompt('NETO del recibo de vacaciones (va al resumen de Eduardo):', vac.neto||'');
+    if(neto===null) return;
+    const desde=fechaISO(desdeIn), hasta=fechaISO(hastaIn);
+    db.sacBlanco[claveMes]=db.sacBlanco[claveMes]||{};
+    db.sacBlanco[claveMes][claveEmp]=db.sacBlanco[claveMes][claveEmp]||{};
+    const hayMonto = leerMonto(bruto)>0||leerMonto(neto)>0;
+    if(desde&&hasta&&hayMonto){
+      const tot=diasTotales(desde,hasta);
+      if(tot>0){
+        db.sacBlanco[claveMes][claveEmp].vac={desde,hasta,monto:leerMonto(bruto)||0,neto:leerMonto(neto)||0};
+        alert('Recibo de vacaciones guardado: '+tot+' días corridos ('+desde+' al '+hasta+'). El bruto se prorratea solo en el SAC si cae entre dos meses; el neto va al resumen.');
+      } else {
+        alert('Las fechas no son válidas: la fecha "hasta" tiene que ser igual o posterior a la "desde". No se guardó.');
+      }
+    } else if(!desde||!hasta){
+      alert('No pude entender las fechas. Escribilas como 10/08/2026 o 2026-08-10. No se guardó.');
+    } else {
+      delete db.sacBlanco[claveMes][claveEmp].vac;
+      alert('Recibo de vacaciones quitado.');
+    }
+    guardar(); refrescarTrasCambio();
+  }
+  // neto de vacaciones que cae en un mes puntual (para el resumen de Eduardo)
+  function vacNetoMes(claveEmp,anio,mes){
+    const claveMes = `${anio}-${String(mes).padStart(2,'0')}`;
+    const r=(db.sacBlanco[claveMes]||{})[claveEmp];
+    return (r && r.vac && r.vac.neto>0) ? (parseFloat(r.vac.neto)||0) : 0;
+  }
+
+  // ---------- Pantalla: Cargar quincena ----------
+  // ============================================================
+  //  Pantalla única de carga (v1) — REUSA el motor existente.
+  //  No calcula nada por su cuenta: arma el mismo formulario con los
+  //  MISMOS ids de campo que lee leerFicha(), y llama a calc() /
+  //  toggleVac() / calcularEmpleado() tal como están. Valor hora y
+  //  viático viajan ocultos (se editan en Ajustes) para no romper
+  //  leerFicha(), que los espera.
+  // ============================================================
+  // Después de una acción que cambia datos (vale, préstamo, recibo de vacaciones, mes de
+  // administrativos): en ⚡ Carga se refrescan solo las partes afectadas, para no perder lo
+  // que esté tipeado sin guardar; en cualquier otra pestaña se vuelve a pintar esa misma.
+  function refrescarTrasCambio(){
+    if(tabActiva==='carga' && document.getElementById('cargaUI')){
+      renderVacReciboCarga(); renderAdminCarga(); calcCarga();
+    } else {
+      irA(tabActiva);
+    }
+  }
+  // ---------- Carga: recibo de vacaciones del empleado elegido ----------
+  // Mismo dato y mismas funciones que la pestaña Recibos (reciboVac / quitarVac).
+  function renderVacReciboCarga(){
+    const cont=document.getElementById('vacReciboCarga'); if(!cont||!periodoActivo) return;
+    const claveMes=periodoActivo.split('-').slice(0,2).join('-');
+    const r=(db.sacBlanco[claveMes]||{})[empActivo];
+    const tiene=!!(r&&r.vac&&(r.vac.monto>0||r.vac.neto>0));
+    const texto = tiene
+      ? `🌴 Recibo de vacaciones: ${r.vac.desde} a ${r.vac.hasta} · bruto <strong>${money0(r.vac.monto||0)}</strong> · neto <strong>${money0(r.vac.neto||0)}</strong>`
+      : '<span class="mini">Sin recibo de vacaciones este mes</span>';
+    const tacho = tiene
+      ? `<button class="btn sec chico" title="Quitar vacaciones" onclick="App.quitarVac('${empActivo}')" style="color:#b3402f">🗑</button>` : '';
+    cont.innerHTML = `<div class="carga-vacrec"><span>${texto}</span>
+      <span style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn sec chico" onclick="App.reciboVac('${empActivo}')">${tiene?'🌴 editar':'+ recibo de vacaciones'}</button>${tacho}
+      </span></div>`;
+  }
+
+  // ---------- Carga: administrativos (mensuales) ----------
+  // Mismo dato y mismas funciones que la pestaña Recibos (setReciboAdmin, setMesAdminRecibos).
+  function renderAdminCarga(){
+    const cont=document.getElementById('adminCarga'); if(!cont) return;
+    if(!periodoActivo){ cont.innerHTML=''; return; }
+    const claveMes=periodoActivo.split('-').slice(0,2).join('-');
+    if(!mesAdminRecibos) mesAdminRecibos=claveMes;
+    const admin=db.admin||[];
+    const aniosSet=new Set();
+    Object.keys(db.periodos).forEach(function(k){ aniosSet.add(k.split('-')[0]); });
+    Object.keys(db.sacBlanco).filter(function(k){ return k[0]!=='_'; }).forEach(function(k){ aniosSet.add(k.split('-')[0]); });
+    aniosSet.add(String(new Date().getFullYear()));
+    const anios=[...aniosSet].sort();
+    const mAnio=mesAdminRecibos.split('-')[0], mMes=parseInt(mesAdminRecibos.split('-')[1]);
+    const nombresMes=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const selMes=`<select onchange="App.setMesAdminRecibos('mes',this.value)" style="width:auto">
+      ${nombresMes.map(function(n,i){ return `<option value="${i+1}" ${i+1===mMes?'selected':''}>${n}</option>`; }).join('')}</select>`;
+    const selAnio=`<select onchange="App.setMesAdminRecibos('anio',this.value)" style="width:auto">
+      ${anios.map(function(a){ return `<option ${a===mAnio?'selected':''}>${a}</option>`; }).join('')}</select>`;
+    const filas=admin.map(function(a){
+      const reg=(db.sacBlanco[mesAdminRecibos]||{})['admin:'+a.nombre]||{};
+      const tieneVac=!!(reg.vac&&(reg.vac.monto>0||reg.vac.neto>0));
+      const infoVac = tieneVac
+        ? `<div class="mini" style="margin-top:3px">🌴 Vac ${reg.vac.desde} a ${reg.vac.hasta}: bruto ${money0(reg.vac.monto||0)} / neto ${money0(reg.vac.neto||0)}</div>` : '';
+      const celdaBruto = a.gerente
+        ? `<td class="mini">— (gerente, sin SAC)</td>`
+        : `<td><input type="number" step="0.01" value="${reg.bruto||''}" placeholder="bruto"
+            onchange="App.setReciboAdmin('${a.nombre}','bruto',this.value)" style="width:130px"></td>`;
+      return `<tr>
+        <td>${a.nombre}${a.gerente?' <span class="mini">(gerente)</span>':''}${infoVac}</td>
+        ${celdaBruto}
+        <td><input type="number" step="0.01" value="${reg.neto||''}" placeholder="neto"
+            onchange="App.setReciboAdmin('${a.nombre}','neto',this.value)" style="width:130px"></td>
+        <td class="no-print"><button class="btn sec chico" onclick="App.reciboVac('admin:${a.nombre}')">${tieneVac?'🌴 editar vac.':'+ recibo vac.'}</button>${tieneVac?` <button class="btn sec chico" title="Quitar vacaciones" onclick="App.quitarVac('admin:${a.nombre}')" style="color:#b3402f">🗑</button>`:''}</td>
+      </tr>`;
+    }).join('');
+    cont.innerHTML=`
+      <div class="card-cab"><h2 style="font-size:15px">Administrativos (mensuales)</h2>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <span style="font-size:12px;color:var(--tinta-2)">Mes:</span>${selMes}${selAnio}</div></div>
+      <div class="card-cuerpo" style="padding:0">
+        <div class="hint-carga" style="margin:10px 14px">Se cargan una vez por mes: elegí el mes acá al lado. El bruto va al SAC blanco; el neto, al resumen de Eduardo.</div>
+        <table><thead><tr><th>Empleado</th><th>Bruto remun.</th><th>Neto</th><th class="no-print">Vacaciones</th></tr></thead>
+        <tbody>${filas || '<tr><td colspan="4" style="text-align:center;color:#8a7d63;padding:16px">Sin administrativos cargados.</td></tr>'}</tbody></table>
+      </div>`;
+  }
+
+  // Lee un monto escrito a mano como se escribe acá: "120.000", "191.895,77", "$ 1.500",
+  // o también "120000" y "191895.77". Devuelve NaN si no es un número claro.
+  function leerMonto(s){
+    let txt=String(s==null?'':s).replace(/\$/g,'').replace(/\s/g,'');
+    if(txt==='') return NaN;
+    if(txt.indexOf(',')>=0) txt=txt.replace(/\./g,'').replace(',','.');
+    else if(/^\d{1,3}(\.\d{3})+$/.test(txt)) txt=txt.replace(/\./g,'');
+    return Number(txt);
+  }
+  // ---------- Carga: corregir un vale o préstamo desde su tarjeta ----------
+  // La tarjeta muestra "debe" = la deuda ANTES de esta quincena, así que se pide ese mismo
+  // número y se le resta lo ya descontado esta quincena para guardar el saldo.
+  function corregirItemCarga(empId,itemId){
+    const x=(db.prestamos[empId]||[]).find(function(i){ return i.id===itemId; }); if(!x) return;
+    const clave=periodoActivo+'|'+empId;
+    const yaAplicado=(x.aplicaciones&&x.aplicaciones[clave])||0;
+    const tipo = x.tipo==='vale' ? 'vale' : 'préstamo';
+    const desc=prompt('Descripción del '+tipo+':', x.desc||'');
+    if(desc===null) return;
+    const antes=Math.round(((Number(x.saldo)||0)+yaAplicado)*100)/100;
+    const s=prompt('Deuda ANTES de esta quincena (lo que dice "debe" en la tarjeta):', antes);
+    if(s===null) return;
+    const nuevo=leerMonto(s);
+    if(isNaN(nuevo)||nuevo<0){ alert('Poné un monto válido. No se cambió nada.'); return; }
+    if(nuevo<yaAplicado){
+      alert('Esta quincena ya se descontaron '+money(yaAplicado)+' de este '+tipo+', así que la deuda de antes no puede ser menor. Primero bajá el descuento y guardá la quincena. No se cambió nada.');
+      return;
+    }
+    x.desc=desc;
+    x.saldo=nuevo-yaAplicado;
+    if(x.saldo<=0.001){ x.saldo=0; x.saldado=true; } else { x.saldado=false; }
+    guardar(); refrescarTrasCambio();
+  }
+
+  // ============================================================
+  //  Descuento MAYOR que la deuda (circuito de Raquel, confirmado 17-sep-2026):
+  //  esta quincena se descuenta SOLO la deuda real, y la diferencia pasa como VALE
+  //  NUEVO a la quincena siguiente. Nunca se decide solo: se consulta primero.
+  //  El vale se crea recién al Guardar la quincena, igual que el resto de la ficha,
+  //  para que no quede un vale suelto si la carga no se guarda.
+  // ============================================================
+  const excedentesPendientes = {};      // "periodo|empleado|tipo" -> diferencia a pasar como vale
+  const descuentoAntesDeEditar = {};    // tipo -> descuento que había al entrar al campo
+  function claveExcedente(tipo){ return periodoActivo+'|'+empActivo+'|'+tipo; }
+  // Deuda real del tipo ANTES de esta quincena. No cuenta los vales que nacieron del
+  // excedente de esta misma quincena: esos se descuentan recién en la siguiente.
+  function deudaTipoCarga(tipo){
+    return (db.prestamos[empActivo]||[]).filter(function(x){
+      return x.tipo===tipo && !(x.origen && x.origen.periodo===periodoActivo);
+    }).reduce(function(s,x){ return s+Math.max(0,saldoBase(x)); },0);
+  }
+  function excedenteCarga(tipo){
+    const el=document.getElementById(tipo==='vale'?'f_dvale':'f_dpres'); if(!el) return null;
+    const d=Math.round((parseFloat(el.value)||0)*100)/100;
+    const b=Math.round(deudaTipoCarga(tipo)*100)/100;
+    if(d<=b+0.004) return null;
+    return { tipo:tipo, descuento:d, deuda:b, diferencia:Math.round((d-b)*100)/100 };
+  }
+  function focoDescuentoCarga(tipo,input){
+    const el=document.getElementById(tipo==='vale'?'f_dvale':'f_dpres');
+    descuentoAntesDeEditar[tipo] = el ? el.value : '0';
+    input.select();
+  }
+  function consultarExcedente(ex, despues){
+    if(document.getElementById('modalExcedente')) return;
+    const deQue = ex.tipo==='vale' ? 'de vales' : 'de préstamos';
+    const m=document.createElement('div');
+    m.id='modalExcedente'; m.className='modal-exc no-print';
+    m.innerHTML=`<div class="modal-exc-caja" role="dialog" aria-modal="true" aria-labelledby="excTit">
+      <div class="modal-exc-tit" id="excTit">El descuento supera la deuda</div>
+      <p>Descontás <strong>${money(ex.descuento)}</strong> pero la deuda ${deQue} es <strong>${money(ex.deuda)}</strong>.</p>
+      <p>Esta quincena se descuenta <strong>${money(ex.deuda)}</strong> y quedan <strong>${money(ex.diferencia)}</strong> que pasarían como vale a la quincena siguiente.</p>
+      <p style="font-weight:600;margin-top:10px">¿Qué hacés?</p>
+      <div class="modal-exc-botones">
+        <button class="btn" id="excCrear">Sí: descontar ${money(ex.deuda)} ahora y crear un vale de ${money(ex.diferencia)} para la quincena siguiente</button>
+        <button class="btn sec" id="excCorregir">No, corregir el monto</button>
+      </div></div>`;
+    document.body.appendChild(m);
+    function cerrar(){ m.remove(); document.removeEventListener('keydown',tecla,true); }
+    function corregir(){ cerrar(); volverACorregirDescuento(ex.tipo); }
+    function tecla(e){ if(e.key==='Escape'){ e.preventDefault(); corregir(); } }
+    m.querySelector('#excCrear').onclick=function(){ cerrar(); aceptarExcedente(ex); if(despues) despues(); };
+    m.querySelector('#excCorregir').onclick=corregir;
+    document.addEventListener('keydown',tecla,true);
+    m.querySelector('#excCorregir').focus();   // lo que queda marcado es la opción que no toca nada
+  }
+  function aceptarExcedente(ex){
+    const el=document.getElementById(ex.tipo==='vale'?'f_dvale':'f_dpres'); if(!el) return;
+    el.value = ex.deuda;                                   // hoy se descuenta solo la deuda
+    excedentesPendientes[claveExcedente(ex.tipo)] = ex.diferencia;   // se crea al guardar
+    calcCarga();
+  }
+  function volverACorregirDescuento(tipo){
+    const el=document.getElementById(tipo==='vale'?'f_dvale':'f_dpres'); if(!el) return;
+    const b=Math.round(deudaTipoCarga(tipo)*100)/100;
+    const antes=parseFloat(descuentoAntesDeEditar[tipo]);
+    el.value = (!isNaN(antes) && antes<=b+0.004) ? antes : b;   // nunca queda por encima de la deuda
+    calcCarga();
+    const inp=document.querySelector('#ccItems input[oninput*="setDescuentoCarga(\''+tipo+'\'"]');
+    if(inp){ inp.focus(); inp.select(); }
+  }
+  // Antes de guardar o imprimir: si algún descuento supera la deuda, consultar primero.
+  function resolverExcedentesAntes(continuar){
+    if(document.getElementById('modalExcedente')) return false;
+    const ex = excedenteCarga('vale') || excedenteCarga('prestamo');
+    if(!ex) return true;
+    consultarExcedente(ex, continuar);
+    return false;
+  }
+
+  function cargaCompleto(d){
+    return !!(d && d.diasVino!==undefined && d.diasVino!=='');
+  }
+  // Saldo del item sin contar lo ya aplicado en ESTA quincena, para poder
+  // recalcular en vivo aunque la ficha ya se haya guardado antes.
+  function saldoBase(x){
+    const clave = periodoActivo+'|'+empActivo;
+    const yaAplicado = (x.aplicaciones && x.aplicaciones[clave]) || 0;
+    return (Number(x.saldo)||0) + yaAplicado;
+  }
+  // Reparte un monto entre los items de un tipo igual que lo hace aplicarA():
+  // en orden, hasta agotar el saldo de cada uno. Así el "queda $X" que se ve
+  // en pantalla es exactamente lo que va a pasar al guardar.
+  function repartoPreview(items, monto){
+    let resto = Number(monto)||0;
+    return items.map(function(x){
+      const base = saldoBase(x);
+      const aplica = Math.max(0, Math.min(resto, base));
+      resto -= aplica;
+      return { item:x, base:base, aplica:aplica, queda: base-aplica };
+    });
+  }
+
+  function vistaCarga(){
+    const v=document.getElementById('vista');
+    const p=periodoActual();
+    if(!p){
+      v.innerHTML='<div class="card"><div class="card-cuerpo"><div class="vacio"><div class="ico">📋</div>'+
+        'No hay ninguna quincena creada todavía.<br>Creá una con el botón "Nueva" de arriba.</div></div></div>';
+      return;
+    }
+    if(!empActivo) empActivo=db.empleados[0].id;
+    v.innerHTML=`
+      <div id="cargaUI">
+        <div class="card">
+          <div class="card-cab">
+            <h2>Carga de quincena</h2>
+            <span class="sub">${p.etiqueta}</span>
+            <div style="margin-left:auto" class="campo">
+              <label>Días laborables</label>
+              <input type="number" value="${p.diasLaborables}" style="width:86px" oninput="App.setDiasLabCarga(this.value)">
+            </div>
+          </div>
+          <div class="card-cuerpo">
+            <div class="chips" id="chipsCarga"></div>
+            <div id="cargaCuerpo"></div>
+          </div>
+        </div>
+        <div class="card" id="adminCarga"></div>
+      </div>
+      <div id="printCarga" class="ph1 oculto"></div>`;
+    renderChipsCarga();
+    renderCarga();
+    renderAdminCarga();
+  }
+
+  function renderChipsCarga(){
+    const p=periodoActual();
+    const cont=document.getElementById('chipsCarga'); if(!cont) return;
+    cont.innerHTML=db.empleados.map(function(e){
+      const ok=cargaCompleto(p.datos[e.id]);
+      return `<button class="chip ${e.id===empActivo?'on':''} ${ok?'':'pend'}"
+        onclick="App.selEmpCarga('${e.id}')">${ok?'✓':'⚠'} ${e.apellido}</button>`;
+    }).join('');
+  }
+  function selEmpCarga(id){ empActivo=id; renderChipsCarga(); renderCarga(); }
+  function setDiasLabCarga(val){
+    periodoActual().diasLaborables=parseInt(val)||0;
+    guardar(); renderCarga();
+  }
+
+  function renderCarga(){
+    // Se vuelve a leer lo guardado: una decisión de excedente sin guardar se descarta y se
+    // retoma la que quedó guardada con la quincena (si la hubo).
+    (function(){
+      const g = ((periodoActual().datos[empActivo]||{}).excedente) || {};
+      ['vale','prestamo'].forEach(function(tipo){
+        if(g[tipo]>0) excedentesPendientes[claveExcedente(tipo)] = g[tipo];
+        else delete excedentesPendientes[claveExcedente(tipo)];
+      });
+    })();
+    const e=emp(empActivo), p=periodoActual();
+    const d=p.datos[empActivo] || (p._prefill&&p._prefill[empActivo]) || {};
+    const val=function(k,def){ return (d[k]!==undefined && d[k]!=='') ? d[k] : def; };
+    const yaGuardado = !!p.datos[empActivo];
+    const pend=pendientesDe(empActivo);
+    const sugVale = yaGuardado ? val('descuentoVale',0) : (pend.vale||0);
+    const sugPres = yaGuardado ? val('descuentoPrestamo',0) : 0;
+
+    const cont=document.getElementById('cargaCuerpo'); if(!cont) return;
+    cont.innerHTML=`
+    <div class="carga-cols">
+      <div>
+        <input type="hidden" id="f_vh" value="${val('valorHora',e.valorHora)}">
+        <input type="hidden" id="f_vi" value="${val('viatico',e.viatico)}">
+
+        <div class="carga-bloque">
+          <h3>1 · Del recibo oficial</h3>
+          <div class="grid-campos">
+            <div class="campo"><label>Bruto remunerativo</label>
+              <input id="f_sb" type="number" step="0.01" value="${val('sueldoBruto',e.sueldoBruto)}" oninput="App.calcCarga()"></div>
+            <div class="campo"><label>Neto (banco)</label>
+              <input id="f_bl" type="number" step="0.01" value="${val('sueldoBlanco',e.sueldoBlanco||'')}" oninput="App.calcCarga()"></div>
+          </div>
+          <div class="hint-carga">El bruto alimenta el presentismo y el SAC blanco. El neto va al resumen de Eduardo.</div>
+          <div id="vacReciboCarga"></div>
+        </div>
+
+        <div class="carga-bloque">
+          <h3>2 · De esta quincena</h3>
+          <div class="grid-campos">
+            <div class="campo"><label>Días que vino <span class="mini">de ${p.diasLaborables}</span></label>
+              <input id="f_dv" type="number" value="${val('diasVino',p.diasLaborables)}" oninput="App.calcCarga()"></div>
+            <div class="campo"><label>Días de comida <span class="mini">normalmente = días que vino</span></label>
+              <input id="f_dc" type="number" value="${val('diasComida', val('diasVino',p.diasLaborables))}" oninput="App.calcCarga()"></div>
+            <div class="campo"><label>Horas extras${e.especial?' <span class="mini">incl. 2 fijas</span>':''}</label>
+              <input id="f_he" type="number" value="${val('hsExtras',e.especial?2:0)}" oninput="App.calcCarga()"></div>
+          </div>
+          <div style="background:var(--papel-2);border-radius:8px;padding:10px 12px;margin-top:12px">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:500;font-size:14px">
+              <input type="checkbox" id="f_vac" ${val('vacaciones',false)?'checked':''} onchange="App.toggleVacCarga()" style="width:16px;height:16px;cursor:pointer">
+              🌴 Está de vacaciones esta quincena
+            </label>
+            <div id="vacCampos" class="${val('vacaciones',false)?'':'oculto'}" style="margin-top:10px">
+              <div class="hint-carga" style="margin-bottom:8px">Cobra el presentismo completo aunque no haya venido todos los días. Hs extras: 1 semana = 2,5 · 2 semanas = 5.</div>
+              <div class="grid-campos">
+                <div class="campo"><label>Período (ej. 10/08 al 16/08)</label>
+                  <input id="f_vacper" value="${val('vacPeriodo','')}" oninput="App.calcCarga()"></div>
+                <div class="campo"><label>Días de vacaciones</label>
+                  <input id="f_vacdias" type="number" value="${val('diasVacaciones','')}" oninput="App.calcCarga()"></div>
+                <div class="campo"><label>Hs extras de vacaciones</label>
+                  <input id="f_vache" type="number" step="0.1" value="${val('hsExtrasVacaciones','')}" oninput="App.calcCarga()"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="carga-bloque">
+          <h3>3 · Vales y préstamos</h3>
+          <input type="hidden" id="f_dvale" value="${sugVale}">
+          <input type="hidden" id="f_dpres" value="${sugPres}">
+          <div id="ccItems"></div>
+          <div class="btn-fila">
+            <button class="btn sec chico" onclick="App.nuevoItem('${empActivo}','vale')">+ Agregar vale</button>
+            <button class="btn sec chico" onclick="App.nuevoItem('${empActivo}','prestamo')">+ Agregar préstamo</button>
+            <button class="btn sec chico" style="margin-left:auto" onclick="App.imprimirValesEnBlanco()">🖨 Imprimir vales en blanco</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="carga-liq">
+        <div class="carga-bloque" style="margin-bottom:10px">
+          <h3>Liquidación en vivo</h3>
+          <div id="liqBox"></div>
+          <div id="netoBanco"></div>
+        </div>
+        <div class="btn-fila" style="margin-top:0">
+          <button class="btn" onclick="App.guardarCarga()">Guardar</button>
+          <button class="btn sec" onclick="App.imprimirCarga()">🖨 Imprimir comprobantes</button>
+        </div>
+        <div class="hint-carga" style="margin-top:8px">Imprime la quincena y, si esta quincena se descontó cuota o vale, también su comprobante — uno por hoja.</div>
+      </div>
+    </div>`;
+    renderItemsCarga();
+    renderVacReciboCarga();
+    calcCarga();
+  }
+
+  // Tarjetas de vales y préstamos, con el "queda" calculado igual que al guardar.
+  function renderItemsCarga(){
+    const cont=document.getElementById('ccItems'); if(!cont) return;
+    const items=(db.prestamos[empActivo]||[]).filter(function(x){ return saldoBase(x)>0; });
+    if(items.length===0){
+      cont.innerHTML='<div class="hint-carga">Sin vales ni préstamos pendientes.</div>';
+      return;
+    }
+    const vales=items.filter(function(x){ return x.tipo==='vale'; });
+    const pres =items.filter(function(x){ return x.tipo==='prestamo'; });
+    const elV=document.getElementById('f_dvale'), elP=document.getElementById('f_dpres');
+    const dVale=parseFloat(elV?elV.value:0)||0;
+    const dPres=parseFloat(elP?elP.value:0)||0;
+    const repVale=repartoPreview(vales,dVale);
+    const repPres=repartoPreview(pres,dPres);
+    const sugVale=repVale.reduce(function(s,r){ return s+r.base; },0);
+
+    function tarjetas(rep, tipo, total, sugerido){
+      return rep.map(function(rr,i){
+        const x=rr.item;
+        const pendExc = (i===0) ? (excedentesPendientes[claveExcedente(tipo)]||0) : 0;
+        const excGuardado = (((periodoActual().datos[empActivo]||{}).excedente)||{})[tipo];
+        const yaCreado = pendExc>0 && excGuardado>0 && Math.abs(excGuardado-pendExc)<0.005;
+        const notaExc = pendExc<=0 ? '' : (yaCreado
+          ? `<div class="carga-exc" id="exc-${tipo}">Esta quincena se descuenta solo la deuda. La diferencia de <strong>${money(pendExc)}</strong> quedó como vale para la quincena siguiente.</div>`
+          : `<div class="carga-exc" id="exc-${tipo}">Esta quincena se descuenta solo la deuda. <strong>Al guardar</strong> se crea un vale de <strong>${money(pendExc)}</strong> para la quincena siguiente.</div>`);
+        const campo = (i===0)
+          ? `<input type="text" inputmode="decimal" autocomplete="off" value="${montoCampo(total)}" style="width:118px;text-align:right"
+               onfocus="App.focoDescuentoCarga('${tipo}',this)"
+               oninput="App.setDescuentoCarga('${tipo}',this.value)"
+               onchange="App.confirmarDescuentoCarga('${tipo}',this)">`
+          : `<span class="mini">se descuenta en orden, después del anterior</span>`;
+        const sug = (i===0 && sugerido>0)
+          ? `<button class="btn sec chico" onclick="App.setDescuentoCarga('${tipo}',${sugerido},true)">usar ${money0(sugerido)}</button>`
+          : '';
+        return `<div class="carga-item">
+          <div class="cab"><span>${x.tipo==='vale'?'🧾':'💳'} ${x.desc||(x.tipo==='vale'?'Vale':'Préstamo')}</span>
+            <span>debe ${money(rr.base)} <span class="mini">antes de esta quincena</span></span></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+            <span class="mini">descontar ahora</span> ${campo} ${sug}
+            <span class="carga-queda" data-item="${x.id}" style="margin-left:auto">queda <strong>${money(rr.queda)}</strong></span>
+          </div>
+          ${notaExc}
+          <div class="btn-fila" style="margin-top:6px">
+            <button class="btn sec chico" onclick="App.corregirItemCarga('${empActivo}','${x.id}')">✏ Corregir</button>
+            <button class="btn sec chico" onclick="App.imprimirVale('${empActivo}','${x.id}')">🧾 Imprimir vale</button>
+            <button class="btn sec chico" onclick="App.borrarItem('${empActivo}','${x.id}')">Eliminar</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    cont.innerHTML = tarjetas(repVale,'vale',dVale,sugVale) + tarjetas(repPres,'prestamo',dPres,0);
+  }
+  // Monto para mostrar en el campo "descontar ahora": 100000 → "100.000", 191895.77 → "191.895,77".
+  function montoCampo(n){
+    const v=Math.round((Number(n)||0)*100)/100;
+    return v.toLocaleString('es-AR',{minimumFractionDigits:Number.isInteger(v)?0:2,maximumFractionDigits:2});
+  }
+  // Mientras se escribe en "descontar ahora" NO se redibujan las tarjetas: redibujar
+  // reemplaza el campo que tiene el cursor y lo descoloca. Solo se actualizan la
+  // liquidación, el neto y los "queda". Si lo tipeado todavía no es un número (a medio
+  // escribir), se deja el último valor válido. El botón "usar $X" sí redibuja todo.
+  function setDescuentoCarga(tipo,val,rerender){
+    const el = document.getElementById(tipo==='vale' ? 'f_dvale' : 'f_dpres');
+    if(!el) return;
+    const n = (typeof val==='number') ? val : (String(val).trim()==='' ? 0 : leerMonto(val));
+    if(typeof val!=='number'){
+      delete excedentesPendientes[claveExcedente(tipo)];
+      const nota=document.getElementById('exc-'+tipo); if(nota) nota.style.display='none';
+    }
+    if(!isNaN(n) && n>=0) el.value = Math.round(n*100)/100;   // a centavos: lo guardado = lo que se ve
+    if(rerender){ calcCarga(); return; }
+    calc(); actualizarNetoCarga(); actualizarQuedaCarga();
+  }
+  // Al salir del campo (o Enter): validar y dejar el número prolijo en el mismo campo.
+  function confirmarDescuentoCarga(tipo,input){
+    const el = document.getElementById(tipo==='vale' ? 'f_dvale' : 'f_dpres');
+    if(!el) return;
+    const txt = String(input.value).trim();
+    const n = txt==='' ? 0 : leerMonto(txt);
+    if(isNaN(n) || n<0){
+      alert('"'+txt+'" no es un monto válido. Escribilo como 50000, 50.000 o 50.000,50. Quedó el último monto válido.');
+    } else {
+      el.value = Math.round(n*100)/100;
+    }
+    input.value = montoCampo(parseFloat(el.value)||0);
+    calc(); actualizarNetoCarga(); actualizarQuedaCarga();
+    const ex = excedenteCarga(tipo);
+    if(ex) consultarExcedente(ex);
+  }
+  function actualizarQuedaCarga(){
+    const items=(db.prestamos[empActivo]||[]).filter(function(x){ return saldoBase(x)>0; });
+    const elV=document.getElementById('f_dvale'), elP=document.getElementById('f_dpres');
+    const reps = repartoPreview(items.filter(function(x){ return x.tipo==='vale'; }), parseFloat(elV?elV.value:0)||0)
+      .concat(repartoPreview(items.filter(function(x){ return x.tipo==='prestamo'; }), parseFloat(elP?elP.value:0)||0));
+    reps.forEach(function(rr){
+      const s=document.querySelector('#ccItems .carga-queda[data-item="'+rr.item.id+'"] strong');
+      if(s) s.textContent=money(rr.queda);
+    });
+  }
+
+  // Recalcula con el motor de siempre y agrega lo propio de esta pantalla.
+  function calcCarga(){
+    calc();                       // ← motor intacto: pinta #liqBox
+    actualizarNetoCarga();
+    renderItemsCarga();
+  }
+  function actualizarNetoCarga(){
+    const nb=document.getElementById('netoBanco'); if(!nb) return;
+    const neto=parseFloat(leerFicha().sueldoBlanco)||0;
+    nb.innerHTML = neto>0
+      ? `<div class="carga-neto"><span>Neto al banco (Eduardo)</span><strong>${money(neto)}</strong></div>`
+      : `<div class="carga-neto falta"><span>Neto al banco (Eduardo)</span><span class="mini">falta cargarlo</span></div>`;
+  }
+  function toggleVacCarga(){ toggleVac(); calcCarga(); }
+
+  function guardarCarga(){
+    if(!resolverExcedentesAntes(guardarCarga)) return;
+    const p=periodoActual();
+    const clave = periodoActivo+'|'+empActivo;
+    revertirAplicacion(empActivo, clave);
+    const ficha=leerFicha();
+    p.datos[empActivo]=ficha;
+    // Vales por diferencia que ya había creado ESTA quincena en un guardado anterior: si todavía
+    // no se descontaron en ninguna quincena, se sacan antes de aplicar y se vuelven a crear abajo
+    // con lo que se decidió ahora. Así re-guardar nunca duplica ni deja un vale viejo vivo.
+    const lista = db.prestamos[empActivo] = db.prestamos[empActivo]||[];
+    const intactos = {}, tocados = {};
+    for(let i=lista.length-1;i>=0;i--){
+      const x=lista[i];
+      if(!(x.origen && x.origen.periodo===periodoActivo)) continue;
+      const usado = x.aplicaciones && Object.keys(x.aplicaciones).some(function(c){ return x.aplicaciones[c]>0; });
+      if(usado) tocados[x.origen.desde]=x;
+      else { intactos[x.origen.desde]=x; lista.splice(i,1); }
+    }
+    aplicarDescuentos(empActivo, clave, parseFloat(ficha.descuentoVale)||0, parseFloat(ficha.descuentoPrestamo)||0);
+    // Recién ahora, con los descuentos de esta quincena ya aplicados, se crean los vales por
+    // la diferencia: así no reciben descuento hoy y se descuentan en la quincena siguiente.
+    let creados=0; const excedente={};
+    ['vale','prestamo'].forEach(function(tipo){
+      const z=excedentesPendientes[claveExcedente(tipo)]||0;
+      if(tocados[tipo]){
+        // Ya se empezó a descontar en otra quincena: no se toca, se avisa si cambió.
+        excedente[tipo]=tocados[tipo].original;
+        if(Math.abs(z-tocados[tipo].original)>0.004)
+          alert('El vale por la diferencia de esta quincena ('+money(tocados[tipo].original)+') ya se empezó a descontar en otra quincena, así que no lo cambio. Si hay que corregirlo, hacelo desde su tarjeta.');
+        return;
+      }
+      if(z>0){
+        const previo=intactos[tipo];
+        lista.push({
+          id: previo ? previo.id : 'i'+Date.now()+Math.floor(Math.random()*1000)+tipo.charAt(0),
+          tipo:'vale', desc:'Diferencia de descuento · '+p.etiqueta,
+          original:z, saldo:z, saldado:false,
+          origen:{ periodo:periodoActivo, desde:tipo }
+        });
+        excedente[tipo]=z;
+        if(!previo || Math.abs(previo.original-z)>0.004) creados+=z;
+      }
+    });
+    if(excedente.vale||excedente.prestamo) ficha.excedente=excedente;
+    guardar();
+    renderChipsCarga(); renderCarga();
+    toast(creados>0 ? 'Liquidación guardada · vale de '+money(creados)+' para la quincena siguiente' : 'Liquidación guardada');
+  }
+
+  // Imprime, uno por hoja: comprobante de quincena + el de préstamo y/o vale
+  // con el saldo que queda, si esta quincena se descontó algo.
+  function imprimirCarga(){
+    if(!resolverExcedentesAntes(imprimirCarga)) return;
+    const e=emp(empActivo), p=periodoActual();
+    const q=leerFicha();
+    const r=calcularEmpleado(e,q);
+    let html = comprobanteHTML(e,r,p);
+    const items=(db.prestamos[empActivo]||[]);
+    const repPres=repartoPreview(items.filter(function(x){ return x.tipo==='prestamo'; }), parseFloat(q.descuentoPrestamo)||0);
+    const repVale=repartoPreview(items.filter(function(x){ return x.tipo==='vale'; }), parseFloat(q.descuentoVale)||0);
+    const huboPres=repPres.some(function(x){ return x.aplica>0; });
+    const huboVale=repVale.some(function(x){ return x.aplica>0; });
+    const quedaPres=repPres.reduce(function(s,x){ return s+x.queda; },0);
+    const quedaVale=repVale.reduce(function(s,x){ return s+x.queda; },0);
+    if(huboPres && quedaPres>0) html += comprobanteDeudaHTML(e,quedaPres,p);
+    if(huboVale && quedaVale>0) html += comprobanteDeudaHTML(e,quedaVale,p,'COMPROBANTE DE VALE');
+    const cont=document.getElementById('printCarga');
+    const ui=document.getElementById('cargaUI');
+    cont.innerHTML=html; cont.classList.remove('oculto');
+    ui.classList.add('no-print');
+    window.print();
+    cont.classList.add('oculto'); cont.innerHTML='';
+    ui.classList.remove('no-print');
+  }
+
+
+
+  function toggleVac(){
+    const chk=document.getElementById('f_vac');
+    document.getElementById('vacCampos').classList.toggle('oculto', !chk.checked);
+    calc();
+  }
+
+  function leerFicha(){
+    return {
+      valorHora:document.getElementById('f_vh').value,
+      sueldoBruto:document.getElementById('f_sb').value,
+      sueldoBlanco:document.getElementById('f_bl').value,
+      viatico:document.getElementById('f_vi').value,
+      diasVino:document.getElementById('f_dv').value,
+      diasComida:document.getElementById('f_dc')?document.getElementById('f_dc').value:'',
+      hsExtras:document.getElementById('f_he').value,
+      descuentoVale:document.getElementById('f_dvale').value,
+      descuentoPrestamo:document.getElementById('f_dpres').value,
+      vacaciones:document.getElementById('f_vac')?document.getElementById('f_vac').checked:false,
+      vacPeriodo:document.getElementById('f_vacper')?document.getElementById('f_vacper').value:'',
+      diasVacaciones:document.getElementById('f_vacdias')?document.getElementById('f_vacdias').value:0,
+      hsExtrasVacaciones:document.getElementById('f_vache')?document.getElementById('f_vache').value:0,
+      diasLaborables:periodoActual().diasLaborables
+    };
+  }
+
+  function calc(){
+    const e=emp(empActivo);
+    const q=leerFicha();
+    const r=calcularEmpleado(e,q);
+    // aviso de control: días que vino no puede superar los laborables
+    let aviso='';
+    if(+q.diasVino > +q.diasLaborables){
+      aviso=`<div class="aviso" style="background:var(--rojo-bg);border-color:#e0b0a8;color:var(--rojo)">⚠ Cargaste ${q.diasVino} días trabajados pero la quincena tiene ${q.diasLaborables} laborables. Revisá el dato.</div>`;
+    }
+    if(r.total < 0){
+      const exceso = money0(-r.total);
+      aviso+=`<div class="aviso" style="background:var(--rojo-bg);border-color:#e0b0a8;color:var(--rojo)">⚠ El descuento supera lo que cobra esta quincena por ${exceso}. Corregí el monto del vale o de la cuota de préstamo para que no quede en negativo.</div>`;
+    }
+    document.getElementById('liqBox').innerHTML=aviso+renderLiq(e,r);
+  }
+
+  function renderLiq(e,r){
+    // En la pantalla única mostramos los valores reales al lado de cada renglón
+    // (los mismos que van al pie del comprobante). En las pestañas viejas queda
+    // la fórmula genérica de siempre.
+    const det = !!document.getElementById('cargaUI');
+    const vh  = money(r.baseValorHora);
+    let filas='';
+    if(e.especial){
+      const fij = r.baseHsExtrasFijas||0;
+      const exc = Math.max(0,(r.baseHsExtras||0)-fij);
+      filas+=liqFila('Horas extras fijas',det?`${fij} hs × ${vh} × 1,5`:'2 × valor hora × 1,5',r.hsExtrasFijasMonto);
+      filas+=liqFila('Horas extras',det?`${exc} hs × ${vh} × 1,5`:'excedente sobre las 2 fijas',r.hsExtrasMonto);
+    }else{
+      filas+=liqFila('Horas extras',det?`${r.baseHsExtras||0} hs × ${vh} × 1,5`:'valor hora × 1,5 × cant.',r.hsExtrasMonto);
+    }
+    filas+=liqFilaPres(r,det);
+    filas+=liqFila('Viáticos',det?`${money(r.baseViatico)}/día × ${r.baseDiasVino||0} días`:'viático/día × días',r.viaticos);
+    filas+=liqFila('Comida','$'+db.config.comidaPorDia+' × días',r.comida);
+    if(r.adelanto) filas+=liqFila('Adelanto fut. aumentos','',r.adelanto);
+    if(e.especial){
+      filas+=liqFila('Plus (resto)','techo − presentismo del plus',r.plusResto);
+      filas+=liqFilaPresPlus(r);
+    }
+    let desc='';
+    if(r.descuentoVale) desc+=liqFila('− Vale','',-r.descuentoVale,'desc');
+    if(r.descuentoPrestamo) desc+=liqFila('− Cuota préstamo','',-r.descuentoPrestamo,'desc');
+    let vac='';
+    if(r.deVacaciones){
+      vac=`<div class="liq-sep"></div>
+        <div class="liq-fila"><span class="cc" style="font-weight:600">🌴 Vacaciones${r.diasVacaciones?` (${r.diasVacaciones} días)`:''}</span><span class="vv"></span></div>
+        <div class="liq-fila"><span class="cc">Valor hs extra vac.<span class="nota">valor hora × 1,5</span></span><span class="vv">${money(r.valorHsExtraVac)}</span></div>
+        <div class="liq-fila"><span class="cc">Cantidad hs extras vac.</span><span class="vv">${r.hsExtrasVacaciones||0}</span></div>
+        <div class="liq-fila"><span class="cc"><strong>Total vacaciones</strong></span><span class="vv">${money(r.totalVacaciones)}</span></div>`;
+    }
+    return `<div class="liq">
+      ${filas}
+      <div class="liq-sep"></div>
+      <div class="liq-fila"><span class="cc"><strong>Subtotal</strong></span><span class="vv">${money(r.subtotal)}</span></div>
+      ${desc}
+      ${vac}
+      <div class="liq-fila tot"><span class="cc">${r.deVacaciones?'Liquidación total':'Total a pagar'}</span><span class="vv">${money(r.total)}</span></div>
+    </div>`;
+  }
+  function liqFila(cc,nota,val,cls=''){
+    return `<div class="liq-fila ${cls}"><span class="cc">${cc}${nota?`<span class="nota">${nota}</span>`:''}</span><span class="vv">${money(val)}</span></div>`;
+  }
+  function liqFilaPres(r,det){
+    const badge = r.deVacaciones?'<span class="badge-ok">🌴 vacaciones · cobra</span>':(r.vinoCompleto?'<span class="badge-ok">✓ vino completo</span>':'<span class="badge-no">faltó · no cobra</span>');
+    const nota = det?`<span class="nota">sobre bruto ${money(r.baseSueldoBruto)}</span>`:'';
+    return `<div class="liq-fila"><span class="cc">Presentismo ${badge}${nota}</span><span class="vv">${money(r.presentismo)}</span></div>`;
+  }
+  function liqFilaPresPlus(r){
+    const badge = r.vinoCompleto?'<span class="badge-ok">✓ vino completo</span>':'<span class="badge-no">faltó · no cobra</span>';
+    return `<div class="liq-fila"><span class="cc">Presentismo del plus ${badge}</span><span class="vv">${money(r.plusPresentismo)}</span></div>`;
+  }
+
+
+  // Revierte los descuentos que esta quincena ya había aplicado a los saldos
+  function revertirAplicacion(empId, clave){
+    (db.prestamos[empId]||[]).forEach(x=>{
+      if(x.aplicaciones && x.aplicaciones[clave]!==undefined){
+        x.saldo += x.aplicaciones[clave];   // devolver el monto al saldo
+        x.saldado = x.saldo>0 ? false : x.saldado;
+        delete x.aplicaciones[clave];
+      }
+    });
+  }
+  // Aplica descuentoVale a los vales y descuentoPrestamo a los préstamos, bajando saldos
+  function aplicarDescuentos(empId, clave, montoVale, montoPrestamo){
+    const items=(db.prestamos[empId]||[]).filter(x=>!x.saldado);
+    aplicarA(items.filter(x=>x.tipo==='vale'), montoVale, clave);
+    aplicarA(items.filter(x=>x.tipo==='prestamo'), montoPrestamo, clave);
+  }
+  function aplicarA(lista, monto, clave){
+    let resto=monto;
+    for(const x of lista){
+      if(resto<=0) break;
+      const aplica=Math.min(resto, x.saldo);
+      x.saldo -= aplica;
+      x.aplicaciones = x.aplicaciones||{};
+      x.aplicaciones[clave] = aplica;
+      if(x.saldo<=0.001){ x.saldo=0; x.saldado=true; }
+      resto -= aplica;
+    }
+  }
+
+  function toast(msg){
+    const t=document.createElement('div');
+    t.textContent=msg;
+    t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--tinta);color:#fff;padding:10px 20px;border-radius:8px;z-index:100;box-shadow:var(--sombra-alta);font-size:14px';
+    document.body.appendChild(t); setTimeout(()=>t.remove(),2200);
+  }
+
+  // ---------- Pantalla: Resumen jefe ----------
+  function vistaResumen(){
+    const p=periodoActual();
+    const claveMesRes = periodoActivo ? periodoActivo.split('-').slice(0,2).join('-') : null;
+    function netoVacDe(claveEmp){
+      if(!claveMesRes) return 0;
+      const r=(db.sacBlanco[claveMesRes]||{})[claveEmp];
+      return (r&&r.vac&&r.vac.neto>0)?(parseFloat(r.vac.neto)||0):0;
+    }
+    let tNegro=0,tDesc=0,tNeto=0,tDebe=0,tBlanco=0;
+    const cajaItems=[];
+    const filas=db.empleados.map(e=>{
+      const d=p.datos[e.id];
+      if(!d) return `<tr><td>${e.apellido}</td><td colspan="5" style="text-align:center;color:#8a7d63">sin cargar</td></tr>`;
+      const r=calcularEmpleado(e,d);
+      const desc=r.descuentoVale+r.descuentoPrestamo;
+      const debe=(db.prestamos[e.id]||[]).filter(x=>!x.saldado).reduce((s,x)=>s+(x.saldo||0),0);
+      const netoVac=netoVacDe(e.id);
+      const blanco=(parseFloat(d.sueldoBlanco)||0)+netoVac;
+      tNegro+=r.subtotal; tDesc+=desc; tNeto+=r.total; tDebe+=debe; tBlanco+=blanco;
+      cajaItems.push({ nombre:e.apellido, monto:r.total });
+      const infoVac=netoVac>0?`<div style="font-size:10.5px;color:var(--tinta-2)" class="no-print">incluye vac ${money0(netoVac)}</div>`:'';
+      return `<tr><td>${e.apellido}</td>
+        <td>${money0(r.subtotal)}</td>
+        <td style="color:${desc?'var(--rojo)':'#8a7d63'}">${desc?money0(desc):'0'}</td>
+        <td style="font-weight:600">${money0(r.total)}</td>
+        <td style="color:${debe?'var(--ambar)':'#8a7d63'}">${debe?money0(debe):'0'}</td>
+        <td>${blanco?money0(blanco):'<span style="color:#8a7d63">—</span>'}${infoVac}</td></tr>`;
+    }).join('');
+    const sinCargar=db.empleados.filter(e=>!p.datos[e.id]).map(e=>e.apellido);
+    // datos incompletos: cargó algo pero falta bruto, neto o días
+    const incompletos=db.empleados.filter(e=>{
+      const d=p.datos[e.id]; if(!d) return false;
+      const faltaBruto=!(parseFloat(d.sueldoBruto)>0);
+      const faltaNeto=!(parseFloat(d.sueldoBlanco)>0);
+      const faltaDias=(d.diasVino===undefined||d.diasVino==='');
+      return faltaBruto||faltaNeto||faltaDias;
+    }).map(e=>{
+      const d=p.datos[e.id]; const faltan=[];
+      if(!(parseFloat(d.sueldoBruto)>0)) faltan.push('bruto');
+      if(!(parseFloat(d.sueldoBlanco)>0)) faltan.push('neto');
+      if(d.diasVino===undefined||d.diasVino==='') faltan.push('días');
+      return `${e.apellido} (falta ${faltan.join(', ')})`;
+    });
+    let avisoFalta='';
+    if(sinCargar.length)
+      avisoFalta += `<div class="aviso no-print">⚠ Falta cargar la liquidación de: <strong>${sinCargar.join(', ')}</strong>. El total todavía no está completo.</div>`;
+    if(incompletos.length)
+      avisoFalta += `<div class="aviso no-print" style="border-color:var(--ambar)">📝 Datos incompletos: <strong>${incompletos.join('; ')}</strong>. Revisá antes de imprimir.</div>`;
+    // bloque administración: bruto (solo pantalla, alimenta SAC) + neto (se imprime)
+    // Los montos se guardan POR MES en db.sacBlanco[claveMes]["admin:Nombre"], según el mes del período visible.
+    const admin=db.admin||[];
+    const claveMesAdmin = periodoActivo ? periodoActivo.split('-').slice(0,2).join('-') : null;
+    function adminMonto(nombre,campo){
+      if(!claveMesAdmin) return 0;
+      const r=(db.sacBlanco[claveMesAdmin]||{})['admin:'+nombre];
+      return r ? (parseFloat(r[campo])||0) : 0;
+    }
+    let tAdmin=0;
+    const filasAdmin=admin.map((a,i)=>{
+      const neto=adminMonto(a.nombre,'neto')+netoVacDe('admin:'+a.nombre); tAdmin+=neto;
+      return `<tr><td>${a.nombre}${a.gerente?' <span style="font-size:10px;color:#8a7d63">(gerente)</span>':''}</td>
+        <td>${money0(neto)}</td>
+        <td class="no-print"><button onclick="App.borrarAdmin(${i})" style="background:none;border:none;color:var(--rojo);font-size:12px;cursor:pointer">Eliminar</button></td></tr>`;
+    }).join('');
+    const totalGeneralBlanco = tBlanco + tAdmin;
+    const blancoQuincenales=db.empleados
+      .filter(e=>p.datos[e.id] && ((parseFloat(p.datos[e.id].sueldoBlanco)||0)+netoVacDe(e.id))>0)
+      .map(e=>`<tr><td>${e.apellido}</td><td>${money0((parseFloat(p.datos[e.id].sueldoBlanco)||0)+netoVacDe(e.id))}</td></tr>`).join('');
+    const blancoAdmin=admin.map(a=>`<tr><td>${a.nombre}</td><td>${money0(adminMonto(a.nombre,'neto')+netoVacDe('admin:'+a.nombre))}</td></tr>`).join('');
+    // historial de quincenas cargadas (para saltar a resúmenes anteriores)
+    const clavesHist=Object.keys(db.periodos).sort().reverse();
+    const filasHist=clavesHist.map(k=>{
+      const per=db.periodos[k];
+      let tot=0;
+      db.empleados.forEach(e=>{ const dd=per.datos[e.id]; if(dd){ const rr=calcularEmpleado(e,dd); tot+=rr.total; } });
+      const esActual=k===periodoActivo;
+      return `<tr style="${esActual?'background:var(--panel-2);font-weight:600':''}">
+        <td>${per.etiqueta}${esActual?' <span style="font-size:10px;color:var(--verde)">● viendo</span>':''}</td>
+        <td style="text-align:right">${money0(tot)}</td>
+        <td class="no-print" style="text-align:right"><button class="btn sec chico" onclick="App.cambiarPeriodo('${k}')">${esActual?'actual':'ver'}</button></td>
+      </tr>`;
+    }).join('');
+    const histBloque=clavesHist.length>1?`
+    <div class="card no-print">
+      <div class="card-cab"><h2 style="font-size:15px">Historial de quincenas</h2>
+        <span class="sub">tocá "ver" para abrir un resumen anterior</span></div>
+      <div class="card-cuerpo" style="padding:0">
+        <table><thead><tr><th>Quincena</th><th style="text-align:right">Total negro</th><th></th></tr></thead>
+        <tbody>${filasHist}</tbody></table>
+      </div>
+    </div>`:'';
+    // Caja del día de pago: efectivo (negro) por quincenal + total. Sin administrativos.
+    const totalCaja=cajaItems.reduce((s,x)=>s+(x.monto||0),0);
+    const filasCaja=cajaItems.map(x=>
+      `<tr><td>${x.nombre}</td><td style="text-align:right;font-weight:600">${money0(x.monto)}</td></tr>`).join('');
+    const cajaBloque=cajaItems.length?`
+    <details class="card no-print" style="border:1.5px solid var(--verde)">
+      <summary style="padding:14px 16px;cursor:pointer;font-weight:600;font-size:15px;list-style:none;display:flex;align-items:center;gap:10px">
+        💵 Caja del día de pago — efectivo a juntar: <span style="color:var(--verde)">${money0(totalCaja)}</span>
+        <span style="margin-left:auto;font-size:12px;color:var(--tinta-2);font-weight:400">tocá para ver el detalle</span>
+      </summary>
+      <div class="card-cuerpo" style="padding:0;border-top:1px solid var(--linea)">
+        <table><thead><tr><th>Empleado</th><th style="text-align:right">Efectivo (Parte B)</th></tr></thead>
+        <tbody>${filasCaja}
+          <tr class="t-total"><td>Total a juntar</td><td style="text-align:right;font-size:16px">${money0(totalCaja)}</td></tr>
+        </tbody></table>
+        <div style="padding:8px 14px;font-size:11.5px;color:var(--tinta-2)">Es el negro (Parte B) de los quincenales después de descuentos. No incluye administrativos ni sueldos en blanco.</div>
+      </div>
+    </details>`:'';
+    return `
+    ${histBloque}
+    ${cajaBloque}
+    ${avisoFalta}
+    <div class="kpis">
+      <div class="kpi"><div class="k">Total negro</div><div class="v">${money0(tNegro)}</div></div>
+      <div class="kpi rojo"><div class="k">Descontado</div><div class="v">${money0(tDesc)}</div></div>
+      <div class="kpi verde"><div class="k">Negro a pagar</div><div class="v">${money0(tNeto)}</div></div>
+      <div class="kpi ambar"><div class="k">Debe</div><div class="v">${money0(tDebe)}</div></div>
+    </div>
+    <div class="card">
+      <div class="card-cab"><h2>Resumen</h2><span class="sub">${p.etiqueta}</span>
+        <button class="btn sec chico no-print" style="margin-left:auto" onclick="window.print()">🖨 Imprimir</button></div>
+      <div class="card-cuerpo" style="padding:0">
+        <table>
+          <thead><tr><th>Empleado</th><th>Total negro</th><th>Descontado</th><th>Negro</th><th>Debe</th><th>Blanco</th></tr></thead>
+          <tbody>${filas}
+            <tr class="t-total"><td>Totales</td><td>${money0(tNegro)}</td><td>${money0(tDesc)}</td><td>${money0(tNeto)}</td><td>${money0(tDebe)}</td><td>${money0(tBlanco)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-cab"><h2 style="font-size:15px">Administración</h2>
+        <button class="btn sec chico no-print" style="margin-left:auto" onclick="App.nuevoAdmin()">+ Agregar</button></div>
+      <div class="card-cuerpo" style="padding:0">
+        <div class="aviso no-print" style="margin:10px 12px">El neto se carga en <strong>⚡ Carga</strong>, en el bloque de administrativos. Acá solo se ve para imprimir. Usá "+ Agregar" para sumar un administrativo a la lista.</div>
+        <table>
+          <thead><tr><th>Empleado</th><th>Neto</th><th class="no-print"></th></tr></thead>
+          <tbody>
+            ${filasAdmin || '<tr><td colspan="3" style="text-align:center;color:#8a7d63;padding:16px">Sin cargar. Usá "+ Agregar".</td></tr>'}
+            ${admin.length?`<tr class="t-total"><td>Subtotal administración</td><td>${money0(tAdmin)}</td><td class="no-print"></td></tr>`:''}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-cab"><h2 style="font-size:15px">Blanco por banco — desglose</h2></div>
+      <div class="card-cuerpo" style="padding:0">
+        <table>
+          <tbody>
+            ${blancoQuincenales || ''}
+            <tr class="t-total"><td>Subtotal quincenales</td><td>${money0(tBlanco)}</td></tr>
+            ${blancoAdmin || ''}
+            ${admin.length?`<tr class="t-total"><td>Subtotal administración</td><td>${money0(tAdmin)}</td></tr>`:''}
+            <tr class="t-total" style="border-top:2px solid var(--tinta)"><td style="font-size:15px">Total general blanco (banco)</td><td style="font-size:16px">${money0(totalGeneralBlanco)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  }
+  function setAdminMes(nombre,campo,val){
+    const claveMes = periodoActivo ? periodoActivo.split('-').slice(0,2).join('-') : null;
+    if(!claveMes){ alert('Elegí primero una quincena.'); return; }
+    db.sacBlanco[claveMes]=db.sacBlanco[claveMes]||{};
+    db.sacBlanco[claveMes]['admin:'+nombre]=db.sacBlanco[claveMes]['admin:'+nombre]||{};
+    db.sacBlanco[claveMes]['admin:'+nombre][campo]=val;
+    guardar(); irA('resumen');
+  }
+  function nuevoAdmin(){
+    const nombre=prompt('Nombre del empleado de administración:'); if(!nombre)return;
+    const esGerente=confirm('¿Es gerente? Aceptar = sí (no genera SAC, solo neto). Cancelar = no, es administrativo común.');
+    db.admin=db.admin||[]; db.admin.push({nombre, gerente:esGerente}); guardar(); irA('resumen');
+  }
+  function borrarAdmin(i){
+    if(!confirm('¿Eliminar este registro?'))return;
+    db.admin.splice(i,1); guardar(); irA('resumen');
+  }
+
+  // ---------- Pantalla: Comprobantes imprimibles ----------
+  function vistaComprobantes(){
+    const p=periodoActual();
+    const cargados=db.empleados.filter(e=>p.datos[e.id]);
+    if(cargados.length===0){
+      return `<div class="card"><div class="card-cuerpo"><div class="vacio"><div class="ico">🧾</div>
+        Todavía no cargaste ninguna liquidación en este período.<br>
+        Andá a <strong>⚡ Carga</strong>, guardá al menos un empleado y volvé.</div></div></div>`;
+    }
+    const comprobantes=cargados.map(e=>comprobanteHTML(e,calcularEmpleado(e,p.datos[e.id]),p)).join('');
+    // comprobantes de deuda de préstamo: para cada empleado que tuvo cuota descontada esta quincena
+    const clavePref = periodoActivo+'|';
+    const compDeuda=db.empleados.map(e=>{
+      const conCuota=(db.prestamos[e.id]||[])
+        .filter(x=>x.tipo==='prestamo' && x.aplicaciones && x.aplicaciones[clavePref+e.id]>0);
+      if(conCuota.length===0) return '';
+      // Uno solo por empleado. Si tuviera más de un préstamo con cuota, lo que
+      // queda debiendo es la suma de los saldos.
+      const saldoNuevo=conCuota.reduce((s,x)=>s+num(x.saldo),0);
+      return comprobanteDeudaHTML(e,saldoNuevo,p);
+    }).join('');
+    const seccionDeuda = compDeuda ? `
+      <div style="margin:22px 0 12px" class="no-print"><div style="font-size:16px;font-weight:600">Comprobantes de deuda de préstamo</div>
+        <div style="font-size:12.5px;color:var(--tinta-2)">Para firmar el saldo actualizado tras el descuento de esta quincena</div></div>
+      <div id="comprobantesDeuda" class="ph3">${compDeuda}</div>` : '';
+    return `
+    <div class="no-print" style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+      <div><div style="font-size:16px;font-weight:600">Comprobantes</div>
+        <div style="font-size:12.5px;color:var(--tinta-2)">${p.etiqueta} · ${cargados.length} empleado${cargados.length>1?'s':''}</div></div>
+      <div class="campo" style="margin-left:auto;max-width:150px">
+        <label>Por hoja (al imprimir)</label>
+        <select id="porHoja" onchange="App.setPorHoja(this.value)">
+          <option value="2">2 por hoja</option>
+          <option value="3" selected>3 por hoja</option>
+          <option value="4">4 por hoja</option>
+          <option value="1">1 por hoja</option>
+        </select>
+      </div>
+      <button class="btn" onclick="window.print()">🖨 Imprimir todos</button>
+    </div>
+    <div class="aviso no-print">Elegí cuántos comprobantes entran por hoja para ahorrar papel. Ninguno se corta entre páginas. También podés imprimir uno solo desde el botón de cada tarjeta.</div>
+    <div id="comprobantes" class="ph3">${comprobantes}</div>
+    ${seccionDeuda}`;
+  }
+
+  function comprobanteDeudaHTML(e,saldoNuevo,p,titulo){
+    const hoy=new Date();
+    const fecha=`${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
+    const et='font-weight:700;display:inline-block;min-width:96px';
+    const val='border-bottom:1px solid #999;padding:0 8px';
+    return `
+    <div class="comprobante">
+      <div style="text-align:center;font-weight:700;font-size:15px;letter-spacing:.5px;margin-bottom:20px">${titulo||'COMPROBANTE DE PRÉSTAMO'}</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:18px;font-size:14px">
+        <div>Fecha&nbsp; <span style="border:1px solid var(--tinta);border-radius:4px;padding:5px 14px;font-weight:600;display:inline-block;min-width:112px;text-align:center">${fecha}</span></div>
+      </div>
+      <div style="margin-bottom:18px;font-size:14px"><span style="${et}">Empleado:</span> <span style="${val}">${e.apellido}</span></div>
+      <div style="margin-bottom:18px;font-size:14px"><span style="${et}">En números:</span> <span style="${val}">${money(saldoNuevo)}</span></div>
+      <div style="margin-bottom:18px;font-size:14px"><span style="${et}">En letras:</span> <span style="${val}">${montoEnLetras(saldoNuevo)}</span></div>
+      <div style="margin-top:44px;font-size:14px"><span style="font-weight:700;margin-right:12px">FIRMA</span><span style="display:inline-block;border-bottom:1px solid var(--tinta);min-width:260px;height:1px;vertical-align:bottom"></span></div>
+      <button class="btn sec chico no-print comp-btn" onclick="App.imprimirUno(this)">🖨 Solo este</button>
+    </div>`;
+  }
+  function setPorHoja(n){
+    const cont=document.getElementById('comprobantes');
+    if(cont) cont.className='ph'+n;
+  }
+
+  function comprobanteHTML(e,r,p){
+    let filas='';
+    if(e.especial){
+      filas+=compFila('Horas extras fijas',r.hsExtrasFijasMonto);
+      if(r.hsExtrasMonto) filas+=compFila('Horas extras',r.hsExtrasMonto);
+    }else{
+      filas+=compFila('Horas extras',r.hsExtrasMonto);
+    }
+    filas+=compFila('Presentismo'+(r.vinoCompleto?'':' (no corresponde)'),r.presentismo);
+    filas+=compFila('Viáticos',r.viaticos);
+    filas+=compFila('Comida',r.comida);
+    if(r.adelanto) filas+=compFila('Adelanto fut. aumentos',r.adelanto);
+    if(e.especial){
+      filas+=compFila('Plus',r.plusResto);
+      if(r.plusPresentismo) filas+=compFila('Presentismo del plus',r.plusPresentismo);
+    }
+    let desc='';
+    if(r.descuentoVale) desc+=compFila('− Vale',-r.descuentoVale,true);
+    if(r.descuentoPrestamo) desc+=compFila('− Cuota préstamo',-r.descuentoPrestamo,true);
+    // bloque de vacaciones en continuidad (como la planilla)
+    // Si las vacaciones ya se cobraron (total en 0), el bloque no va.
+    const muestraVac = r.deVacaciones && (r.totalVacaciones||0) > 0;
+    let vacBloque='';
+    if(muestraVac){
+      const per = r.vacPeriodo?`<div class="comp-tip">${r.vacPeriodo}</div>`:'';
+      vacBloque=`
+      <div style="border-top:2px solid var(--tinta);margin-top:16px;padding-top:12px">
+        <div style="font-weight:600;font-size:13.5px">${e.apellido.toUpperCase()} — VACACIONES${r.diasVacaciones?` (${r.diasVacaciones} DÍAS)`:''}</div>
+        ${per}
+        <table class="comp-tabla" style="margin-top:8px">
+          <tr><td>Valor hs extra</td><td>${money(r.valorHsExtraVac)}</td></tr>
+          <tr><td>Cantidad hs extras</td><td>${r.hsExtrasVacaciones||0}</td></tr>
+          <tr class="comp-sub"><td>Total Vacaciones</td><td>${money(r.totalVacaciones)}</td></tr>
+        </table>
+      </div>`;
+    }
+    const rotuloTotal = muestraVac?'LIQUIDACIÓN TOTAL':'Total a cobrar';
+    return `
+    <div class="comprobante">
+      <div class="comp-cab">
+        <div><div class="comp-emp">EG Corrugados</div><div class="comp-tip">Liquidación quincenal · Parte B</div></div>
+        <div style="text-align:right"><div class="comp-emp">${e.apellido}</div><div class="comp-tip">${p.etiqueta}</div></div>
+      </div>
+      <table class="comp-tabla">${filas}
+        <tr class="comp-sub"><td>Subtotal</td><td>${money(r.subtotal)}</td></tr>
+        ${desc}
+      </table>
+      ${vacBloque}
+      <table class="comp-tabla" style="margin-top:4px">
+        <tr class="comp-tot"><td>${rotuloTotal}</td><td>${money(r.total)}</td></tr>
+      </table>
+      <div style="border-top:1px dashed var(--tinta-2);margin-top:12px;padding-top:8px;
+           display:flex;flex-wrap:wrap;gap:3px 18px;font-size:11.5px;color:var(--tinta-2)">
+        <span>Sueldo bruto: <strong style="color:var(--tinta)">${money(r.baseSueldoBruto)}</strong></span>
+        <span>Valor hora: <strong style="color:var(--tinta)">${money(r.baseValorHora)}</strong></span>
+        <span>Hs. extras: <strong style="color:var(--tinta)">${r.baseHsExtras}</strong></span>
+        <span>Días trabajados: <strong style="color:var(--tinta)">${r.baseDiasVino}${r.baseDiasLab?' de '+r.baseDiasLab:''}</strong></span>
+      </div>
+      <div class="comp-firmas" style="justify-content:center">
+        <div class="comp-firma" style="max-width:280px">Firma empleado</div>
+      </div>
+      <button class="btn sec chico no-print comp-btn" onclick="App.imprimirUno(this)">🖨 Solo este</button>
+    </div>`;
+  }
+  function compFila(cc,val,desc){
+    return `<tr class="${desc?'comp-desc':''}"><td>${cc}</td><td>${money(val)}</td></tr>`;
+  }
+  function imprimirUno(btn){
+    const comp=btn.closest('.comprobante');
+    document.querySelectorAll('.comprobante').forEach(c=>{ if(c!==comp) c.classList.add('no-print'); });
+    window.print();
+    document.querySelectorAll('.comprobante').forEach(c=>c.classList.remove('no-print'));
+  }
+
+  // ---------- Pantalla: SAC ----------
+  function vistaSac(){
+    // Determinar años disponibles y cuota seleccionada
+    const anios=[...new Set(Object.keys(db.periodos).map(k=>k.split('-')[0]))].sort();
+    if(anios.length===0){
+      return `<div class="card"><div class="card-cuerpo"><div class="vacio"><div class="ico">🎁</div>
+        Todavía no hay quincenas cargadas.<br>El SAC se calcula solo a medida que cargás las quincenas de cada mes.</div></div></div>`;
+    }
+    if(!sacAnio) sacAnio=anios[anios.length-1];
+    if(!sacCuota) sacCuota=1; // 1 = ene-jun, 2 = jul-dic
+    const mesesCuota = sacCuota===1 ? [1,2,3,4,5,6] : [7,8,9,10,11,12];
+
+    // baseSac por empleado, por mes y por quincena (q = 1 ó 2)
+    // estructura: datos[empId][mes][q] = baseSac
+    const datos={};
+    Object.keys(db.periodos).forEach(clave=>{
+      const [anio,mes,q]=clave.split('-');
+      if(anio!==sacAnio) return;
+      if(!mesesCuota.includes(parseInt(mes))) return;
+      const p=db.periodos[clave];
+      db.empleados.forEach(e=>{
+        const d=p.datos[e.id]; if(!d)return;
+        const r=calcularEmpleado(e,Object.assign({},d,{diasLaborables:p.diasLaborables}));
+        datos[e.id]=datos[e.id]||{};
+        datos[e.id][parseInt(mes)]=datos[e.id][parseInt(mes)]||{};
+        datos[e.id][parseInt(mes)][parseInt(q)]=r.baseSac;
+      });
+    });
+
+    const selAnio=`<select onchange="App.setSacAnio(this.value)" style="width:auto">${anios.map(a=>`<option ${a===sacAnio?'selected':''}>${a}</option>`).join('')}</select>`;
+    const selCuota=`<select onchange="App.setSacCuota(this.value)" style="width:auto">
+      <option value="1" ${sacCuota===1?'selected':''}>1ª cuota (ene–jun)</option>
+      <option value="2" ${sacCuota===2?'selected':''}>2ª cuota (jul–dic)</option></select>`;
+
+    // tabla resumen de todos, con chequeo de meses faltantes
+    function mesesFaltantes(dEmp){
+      return mesesCuota.filter(m=>{
+        const q=(dEmp&&dEmp[m])||{}; return ((q[1]||0)+(q[2]||0))===0;
+      });
+    }
+    const filas=db.empleados.map(e=>{
+      const {mejor,mejorMes}=mejorMesDe(datos[e.id],mesesCuota);
+      const sac=mejor/2;
+      const faltan=mesesFaltantes(datos[e.id]);
+      const avisoMeses = faltan.length
+        ? `<div style="font-size:10.5px;color:var(--ambar);margin-top:2px" class="no-print">faltan: ${faltan.map(m=>nombreMesNum(m).slice(0,3)).join(', ')}</div>`
+        : '';
+      return `<tr><td>${e.apellido}${avisoMeses}</td>
+        <td style="color:#8a7d63">${mejorMes?nombreMesNum(mejorMes):'—'}</td>
+        <td>${money0(mejor)}</td>
+        <td style="font-weight:600">${money0(sac)}</td>
+        <td class="no-print"><button class="btn sec chico" onclick="App.verSacEmp('${e.id}')">Ver comprobante</button></td></tr>`;
+    }).join('');
+    // aviso general si a alguien le falta algún mes
+    const algunoIncompleto=db.empleados.some(e=>mesesFaltantes(datos[e.id]).length>0);
+    const avisoSac = algunoIncompleto
+      ? `<div class="aviso no-print" style="border-color:var(--ambar)">📝 Hay empleados con meses sin cargar en este semestre (marcados en ámbar). Si falta cargar un mes, el "mejor mes" podría cambiar cuando lo completes.</div>` : '';
+
+    let compEmp='';
+    if(sacEmpSel){
+      const e=emp(sacEmpSel);
+      compEmp=comprobanteSacHTML(e,datos[sacEmpSel],mesesCuota);
+    }
+
+    return `
+    <div class="card">
+      <div class="card-cab"><h2>SAC · Aguinaldo</h2>
+        <div style="margin-left:auto;display:flex;gap:8px" class="no-print">${selCuota} ${selAnio}</div></div>
+      <div class="card-cuerpo">
+        <div class="aviso">Por cada quincena se suma <strong>horas extras + presentismo</strong> (y hs extras de vacaciones si las hubo). Se toma el mejor mes del semestre y se divide por dos. La 1ª cuota mira enero–junio; la 2ª, julio–diciembre.</div>
+        ${avisoSac}
+        <table>
+          <thead><tr><th>Empleado</th><th>Mejor mes</th><th>Base (hs+pres.)</th><th>SAC (÷2)</th><th class="no-print"></th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>
+    </div>
+    ${compEmp}`;
+  }
+  function mejorMesDe(dEmp,mesesCuota){
+    let mejor=0,mejorMes=0;
+    if(dEmp) mesesCuota.forEach(m=>{
+      const q=dEmp[m]||{}; const tot=(q[1]||0)+(q[2]||0);
+      if(tot>mejor){ mejor=tot; mejorMes=m; }
+    });
+    return {mejor,mejorMes};
+  }
+  function nombreMesNum(m){
+    const meses=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    return meses[m]||'—';
+  }
+  function comprobanteSacHTML(e,dEmp,mesesCuota){
+    const {mejor,mejorMes}=mejorMesDe(dEmp,mesesCuota);
+    const sac=mejor/2;
+    const cuotaTit = mesesCuota[0]===1?'1º CUOTA SAC':'2º CUOTA SAC';
+    const filasMeses=mesesCuota.map(m=>{
+      const q=(dEmp&&dEmp[m])||{};
+      const q1=q[1]||0, q2=q[2]||0, tot=q1+q2;
+      const esMejor = m===mejorMes && mejor>0;
+      const bg = esMejor?'background:var(--verde-bg)':'';
+      const totFmt = esMejor?`<strong>${money(tot)}</strong>`:money(tot);
+      return `
+        <tr style="${bg}"><td style="font-weight:600" rowspan="2">${nombreMesNum(m).toUpperCase()}</td>
+          <td>1ª quincena</td><td>${money(q1)}</td><td rowspan="2" style="vertical-align:middle;${esMejor?'font-weight:700':''}">${totFmt}</td></tr>
+        <tr style="${bg}"><td>2ª quincena</td><td>${money(q2)}</td></tr>`;
+    }).join('');
+    return `
+    <div class="card">
+      <div class="card-cab no-print"><h2 style="font-size:15px">Comprobante SAC · ${e.apellido}</h2>
+        <button class="btn sec chico" style="margin-left:auto" onclick="window.print()">🖨 Imprimir</button></div>
+      <div class="card-cuerpo">
+        <div class="comprobante" style="max-width:560px;margin:0 auto">
+          <div style="text-align:center;border-bottom:2px solid var(--tinta);padding-bottom:10px;margin-bottom:14px">
+            <div style="font-weight:700;font-size:15px">${cuotaTit} ${sacAnio}</div>
+            <div style="font-weight:600;font-size:14px">${e.apellido}</div>
+          </div>
+          <table style="width:100%;font-size:13px;border-collapse:collapse">
+            <thead><tr style="background:var(--papel-2)">
+              <th style="text-align:left;padding:6px 8px;border:1px solid var(--linea-fuerte)">Mes</th>
+              <th style="text-align:left;padding:6px 8px;border:1px solid var(--linea-fuerte)">Quincenas</th>
+              <th style="text-align:right;padding:6px 8px;border:1px solid var(--linea-fuerte)">Subtotales</th>
+              <th style="text-align:right;padding:6px 8px;border:1px solid var(--linea-fuerte)">Totales</th>
+            </tr></thead>
+            <tbody class="sac-tabla">${filasMeses}</tbody>
+          </table>
+          <div style="margin-top:16px;font-size:14px">
+            <div style="display:flex;justify-content:space-between;padding:5px 0"><span style="font-weight:600">MEJOR MES</span><span style="font-weight:700">${money(mejor)}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:8px 12px;border:1px solid var(--tinta);border-radius:4px;margin-top:6px"><span style="font-weight:700">SAC</span><span style="font-weight:700">${money(sac)}</span></div>
+            <div style="display:flex;justify-content:space-between;padding:8px 12px;border:1px solid var(--tinta);border-radius:4px;margin-top:8px;background:var(--papel-2)"><span style="font-weight:700">A COBRAR</span><span style="font-weight:700">${money(sac)}</span></div>
+          </div>
+          <div class="comp-firmas" style="justify-content:center;margin-top:32px">
+            <div class="comp-firma" style="max-width:280px">Firma empleado</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+  function nombreMes(mk){
+    const meses=['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const [a,m]=mk.split('-'); return `${meses[parseInt(m)]} ${a}`;
+  }
+  function setSacAnio(v){ sacAnio=v; sacEmpSel=null; irA('sac'); }
+  function setSacCuota(v){ sacCuota=parseInt(v); sacEmpSel=null; irA('sac'); }
+  function verSacEmp(id){ sacEmpSel=id; irA('sac'); }
+
+  // ---------- SAC BLANCO ----------
+  // Quincenales: el bruto sale solo de las quincenas cargadas (db.periodos), sumando las 2 del mes.
+  // Administrativos (db.admin): cargan 1 bruto y 1 neto mensual a mano en db.sacBlanco["YYYY-MM"]["admin:Nombre"].
+  // Vacaciones a caballo y ajuste manual: en db.sacBlanco.
+  let sbAnio=null, sbCuota=null;
+  function sbMeses(){ return sbCuota===2 ? [7,8,9,10,11,12] : [1,2,3,4,5,6]; }
+  function sbAnios(){
+    const a=new Set();
+    Object.keys(db.periodos).forEach(k=>a.add(k.split('-')[0]));
+    Object.keys(db.sacBlanco).filter(k=>k[0]!=='_').forEach(k=>a.add(k.split('-')[0]));
+    a.add(String(new Date().getFullYear()));
+    return [...a].sort();
+  }
+  function diasEnMes(desde,hasta,anio,mes){
+    const d0=new Date(desde+'T00:00:00'), d1=new Date(hasta+'T00:00:00');
+    if(isNaN(d0)||isNaN(d1)) return 0;
+    const ini=new Date(anio,mes-1,1), fin=new Date(anio,mes,0);
+    const a=d0>ini?d0:ini, b=d1<fin?d1:fin;
+    if(a>b) return 0;
+    return Math.round((b-a)/86400000)+1;
+  }
+  function diasTotales(desde,hasta){
+    const d0=new Date(desde+'T00:00:00'), d1=new Date(hasta+'T00:00:00');
+    if(isNaN(d0)||isNaN(d1)||d1<d0) return 0;
+    return Math.round((d1-d0)/86400000)+1;
+  }
+  // suma de brutos blancos de las 2 quincenas de un mes para un quincenal (desde db.periodos)
+  function brutoQuincenalMes(empId,anio,mes){
+    let suma=0;
+    [1,2].forEach(q=>{
+      const clave=`${anio}-${String(mes).padStart(2,'0')}-${q}`;
+      const p=db.periodos[clave];
+      if(p && p.datos[empId]){
+        suma += parseFloat(p.datos[empId].sueldoBruto)||0;
+      }
+    });
+    return suma;
+  }
+  // bruto de administración (carga manual mensual)
+  function brutoAdminMes(nombre,anio,mes){
+    const clave=`${anio}-${String(mes).padStart(2,'0')}`;
+    const reg=(db.sacBlanco[clave]||{})['admin:'+nombre];
+    return reg ? (parseFloat(reg.bruto)||0) : 0;
+  }
+  // parte prorrateada de un recibo de vacaciones (guardado en db.sacBlanco) que cae en este mes
+  function vacProrrateoMes(claveEmp,anio,mes){
+    let extra=0;
+    Object.keys(db.sacBlanco).forEach(k=>{
+      if(k[0]==='_') return;
+      if(k.split('-')[0]!==String(anio)) return;
+      const r=(db.sacBlanco[k]||{})[claveEmp];
+      if(r && r.vac && r.vac.monto>0 && r.vac.desde && r.vac.hasta){
+        const tot=diasTotales(r.vac.desde,r.vac.hasta);
+        if(tot>0){
+          const dias=diasEnMes(r.vac.desde,r.vac.hasta,anio,mes);
+          if(dias>0) extra += (parseFloat(r.vac.monto)||0)*(dias/tot);
+        }
+      }
+    });
+    return extra;
+  }
+  function ajusteSacDe(claveEmp){
+    const k=`${sbAnio}-${sbCuota}`;
+    return ((db.sacBlanco['_ajuste']||{})[k]||{})[claveEmp] || 0;
+  }
+  // devuelve la lista de "sujetos" del SAC blanco: quincenales + administrativos
+  function sujetosSacBlanco(){
+    const quin=db.empleados.map(e=>({clave:e.id, nombre:e.apellido, tipo:'quincenal'}));
+    const adm=(db.admin||[]).filter(a=>!a.gerente).map(a=>({clave:'admin:'+a.nombre, nombre:a.nombre, tipo:'admin'}));
+    return quin.concat(adm);
+  }
+  function brutoMesSujeto(s,anio,mes){
+    let base = s.tipo==='quincenal' ? brutoQuincenalMes(s.clave,anio,mes) : brutoAdminMes(s.nombre,anio,mes);
+    base += vacProrrateoMes(s.clave,anio,mes);
+    return base;
+  }
+  function vistaSacBlanco(){
+    const anios=sbAnios();
+    if(!sbAnio) sbAnio=anios[anios.length-1];
+    if(!sbCuota) sbCuota=1;
+    const meses=sbMeses();
+    const A=parseInt(sbAnio);
+    const selAnio=`<select onchange="App.setSbAnio(this.value)" style="width:auto">${anios.map(a=>`<option ${a===sbAnio?'selected':''}>${a}</option>`).join('')}</select>`;
+    const selCuota=`<select onchange="App.setSbCuota(this.value)" style="width:auto">
+      <option value="1" ${sbCuota===1?'selected':''}>1ª cuota (ene–jun)</option>
+      <option value="2" ${sbCuota===2?'selected':''}>2ª cuota (jul–dic)</option></select>`;
+
+    const sujetos=sujetosSacBlanco();
+    // resumen: mejor mes por sujeto
+    const filasResumen=sujetos.map(s=>{
+      let mejor=0,mejorMes=0;
+      meses.forEach(m=>{ const b=brutoMesSujeto(s,A,m); if(b>mejor){mejor=b;mejorMes=m;} });
+      const sac=mejor/2;
+      const aj=ajusteSacDe(s.clave);
+      return `<tr><td>${s.nombre}${s.tipo==='admin'?' <span style="font-size:10px;color:#8a7d63">(adm)</span>':''}</td>
+        <td style="color:#8a7d63">${mejorMes?nombreMesNum(mejorMes):'—'}</td>
+        <td>${money0(mejor)}</td>
+        <td>${money0(sac)}</td>
+        <td class="no-print"><input type="number" step="0.01" placeholder="0" value="${aj||''}"
+            onchange="App.setAjusteSac('${s.clave}',this.value)" style="width:100px" title="Ajuste retroactivo a mano"></td>
+        <td style="font-weight:700">${money0(sac+aj)}</td></tr>`;
+    }).join('');
+
+    // detalle mensual: para quincenales muestra las 2 quincenas (solo lectura, viene de las quincenas);
+    // para administrativos, inputs de bruto y neto
+    const filasMes=meses.map(mes=>{
+      const filas=sujetos.map(s=>{
+        if(s.tipo==='quincenal'){
+          const q1=brutoQuincenalMes1(s.clave,A,mes,1);
+          const q2=brutoQuincenalMes1(s.clave,A,mes,2);
+          const vac=vacProrrateoMes(s.clave,A,mes);
+          const tot=q1+q2+vac;
+          const infoVac=vac>0?` <span style="font-size:10.5px;color:var(--tinta-2)">+ vac ${money0(vac)}</span>`:'';
+          return `<tr>
+            <td>${s.nombre}</td>
+            <td style="text-align:right">${q1?money0(q1):'—'}</td>
+            <td style="text-align:right">${q2?money0(q2):'—'}</td>
+            <td style="text-align:right;font-weight:600">${money0(tot)}${infoVac}</td>
+            <td class="no-print" style="color:#8a7d63;font-size:11px">${vacTiene(s.clave,A,mes)?'🌴 en Carga':''}</td>
+          </tr>`;
+        } else {
+          const clave=`${A}-${String(mes).padStart(2,'0')}`;
+          const reg=(db.sacBlanco[clave]||{})['admin:'+s.nombre]||{};
+          const brutoAdm=parseFloat(reg.bruto)||0;
+          const vac=vacProrrateoMes(s.clave,A,mes);
+          const tot=brutoAdm+vac;
+          const infoVac=vac>0?` <span style="font-size:10.5px;color:var(--tinta-2)">+ vac ${money0(vac)}</span>`:'';
+          return `<tr>
+            <td>${s.nombre} <span style="font-size:10px;color:#8a7d63">(adm)</span></td>
+            <td style="text-align:right" colspan="2">${brutoAdm?money0(brutoAdm):'—'}</td>
+            <td style="text-align:right;font-weight:600">${money0(tot)}${infoVac}</td>
+            <td class="no-print" style="color:#8a7d63;font-size:11px">${vacTiene(s.clave,A,mes)?'🌴 en Carga':''}</td>
+          </tr>`;
+        }
+      }).join('');
+      return `<div class="card" style="margin-bottom:14px">
+        <div class="card-cab"><h2 style="font-size:14px">${nombreMesNum(mes)} ${sbAnio}</h2></div>
+        <div class="card-cuerpo" style="padding:0">
+          <table><thead><tr><th>Empleado</th><th style="text-align:right">1ª quinc.</th><th style="text-align:right">2ª quinc.</th><th style="text-align:right">Total mes</th><th class="no-print">Vac.</th></tr></thead>
+          <tbody>${filas}</tbody></table>
+        </div></div>`;
+    }).join('');
+
+    return `
+    <div class="card">
+      <div class="card-cab"><h2>SAC blanco · control</h2>
+        <div style="margin-left:auto;display:flex;gap:8px" class="no-print">${selCuota} ${selAnio}</div></div>
+      <div class="card-cuerpo">
+        <div class="aviso">El SAC blanco se arma solo: los <strong>quincenales</strong> desde el sueldo bruto de cada quincena (suma las 2 del mes), y los <strong>administrativos</strong> desde el bruto que cargás en ⚡ Carga. Los <strong>recibos de vacaciones</strong> se cargan en <strong>⚡ Carga</strong> y suman acá solos (prorrateados por días si caen entre dos meses). El <strong>ajuste</strong> del resumen suma un retroactivo a mano.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-cab"><h2 style="font-size:15px">Resumen — ${sbCuota===1?'1ª cuota (ene–jun)':'2ª cuota (jul–dic)'} ${sbAnio}</h2>
+        <button class="btn sec chico no-print" style="margin-left:auto" onclick="window.print()">🖨 Imprimir</button></div>
+      <div class="card-cuerpo" style="padding:0">
+        <table><thead><tr><th>Empleado</th><th>Mejor mes</th><th>Mejor bruto</th><th>SAC (÷2)</th><th class="no-print">Ajuste</th><th>SAC final</th></tr></thead>
+        <tbody>${filasResumen}</tbody></table>
+      </div>
+    </div>
+    <div style="margin:18px 0 10px" class="no-print"><div style="font-size:15px;font-weight:600">Detalle mensual</div>
+      <div style="font-size:12px;color:var(--tinta-2)">Los quincenales se muestran desde las quincenas cargadas (solo lectura). Los administrativos se cargan a mano.</div></div>
+    ${filasMes}`;
+  }
+  // bruto de una quincena puntual (para el detalle)
+  function brutoQuincenalMes1(empId,anio,mes,q){
+    const clave=`${anio}-${String(mes).padStart(2,'0')}-${q}`;
+    const p=db.periodos[clave];
+    return (p && p.datos[empId]) ? (parseFloat(p.datos[empId].sueldoBruto)||0) : 0;
+  }
+  function vacTiene(claveEmp,anio,mes){
+    const clave=`${anio}-${String(mes).padStart(2,'0')}`;
+    const r=(db.sacBlanco[clave]||{})[claveEmp];
+    return !!(r&&r.vac&&r.vac.monto>0);
+  }
+  function setAjusteSac(claveEmp,val){
+    db.sacBlanco['_ajuste']=db.sacBlanco['_ajuste']||{};
+    const k=`${sbAnio}-${sbCuota}`;
+    db.sacBlanco['_ajuste'][k]=db.sacBlanco['_ajuste'][k]||{};
+    db.sacBlanco['_ajuste'][k][claveEmp]=parseFloat(val)||0;
+    guardar(); irA('sacblanco');
+  }
+  function vacSb(clave,claveEmp){
+    const reg=(db.sacBlanco[clave]||{})[claveEmp]||{};
+    const vac=reg.vac||{};
+    const desde=prompt('Vacaciones — fecha DESDE (AAAA-MM-DD):', vac.desde||'');
+    if(desde===null) return;
+    const hasta=prompt('Vacaciones — fecha HASTA (AAAA-MM-DD):', vac.hasta||'');
+    if(hasta===null) return;
+    const monto=prompt('Monto del recibo de vacaciones (bruto remunerativo):', vac.monto||'');
+    if(monto===null) return;
+    db.sacBlanco[clave]=db.sacBlanco[clave]||{};
+    db.sacBlanco[clave][claveEmp]=db.sacBlanco[clave][claveEmp]||{};
+    if(desde&&hasta&&parseFloat(monto)>0){
+      db.sacBlanco[clave][claveEmp].vac={desde,hasta,monto:parseFloat(monto)};
+      const tot=diasTotales(desde,hasta);
+      if(tot>0) alert('Vacaciones guardadas: '+tot+' días corridos. El monto se prorratea solo entre los meses que toca.');
+      else alert('Revisá las fechas: el rango no es válido.');
+    } else {
+      delete db.sacBlanco[clave][claveEmp].vac;
+    }
+    guardar(); irA('sacblanco');
+  }
+  function setSbAnio(v){ sbAnio=v; irA('sacblanco'); }
+  function setSbCuota(v){ sbCuota=parseInt(v); irA('sacblanco'); }
+
+
+
+  function nuevoItem(empId,tipo){
+    const label=tipo==='vale'?'vale':'préstamo';
+    const montoStr=prompt(`Monto del ${label}:`);
+    if(montoStr===null) return;
+    const monto=leerMonto(montoStr);
+    if(isNaN(monto)||monto<=0){ alert('Poné un monto válido'); return; }
+    const desc=prompt('Descripción (opcional):', tipo==='vale'?'Vale':'Préstamo')||'';
+    db.prestamos[empId]=db.prestamos[empId]||[];
+    db.prestamos[empId].push({
+      id:'i'+Date.now()+Math.floor(Math.random()*1000),
+      tipo, desc, original:monto, saldo:monto, saldado:false
+    });
+    guardar(); refrescarTrasCambio();
+  }
+  function borrarItem(empId,itemId){
+    if(!confirm('¿Eliminar este registro?')) return;
+    db.prestamos[empId]=(db.prestamos[empId]||[]).filter(x=>x.id!==itemId);
+    guardar(); refrescarTrasCambio();
+  }
+
+  // Imprime el comprobante de VALE con el formato Fecha/Empleado/Números/Letras/Firma.
+  // Usa el saldo actual del ítem (sirve al crearlo y en cada actualización tras descontar).
+  // Comprobantes de vale/préstamo EN BLANCO, para tener impresos y completar a mano.
+  // 3 por hoja A4 con línea de corte. No lee ni escribe ningún dato.
+  function imprimirValesEnBlanco(){
+    const uno = `
+      <div class="celda">
+        <div class="vale">
+          <div class="vale-tit">COMPROBANTE DE VALE / PRÉSTAMO</div>
+          <div class="fila"><div>Fecha&nbsp; <span class="fecha-box">____ / ____ / ________</span></div></div>
+          <div class="campo"><span class="et">Empleado:</span><span class="lin"></span></div>
+          <div class="campo"><span class="et">En números:</span><span class="lin"></span></div>
+          <div class="campo"><span class="et">En letras:</span><span class="lin"></span></div>
+          <div class="campo"><span class="et"></span><span class="lin"></span></div>
+          <div class="firma"><span class="et">FIRMA</span><span class="lin"></span></div>
+        </div>
+      </div>`;
+    const html=`<!DOCTYPE html><html lang="es-AR"><head><meta charset="UTF-8"><title>Vales en blanco</title>
+      <style>
+        @page{size:A4;margin:10mm}
+        *{box-sizing:border-box}
+        body{font-family:Arial,Helvetica,sans-serif;color:#1a2b34;margin:0}
+        .hoja{width:190mm;margin:0 auto}
+        .celda{height:92mm;padding:5mm 0;position:relative}
+        .celda + .celda{border-top:1px dashed #777}
+        .celda + .celda::before{content:'✂';position:absolute;top:-10px;left:0;font-size:14px;color:#555;background:#fff;padding:0 3px}
+        .vale{border:2px solid #1a2b34;border-radius:6px;padding:6mm 9mm;height:100%;display:flex;flex-direction:column}
+        .vale-tit{text-align:center;font-weight:700;font-size:16px;letter-spacing:.5px;margin-bottom:4mm}
+        .fila{display:flex;justify-content:flex-end;margin-bottom:4mm;font-size:15px}
+        .fecha-box{border:1px solid #1a2b34;border-radius:4px;padding:5px 12px;font-weight:600;letter-spacing:1px}
+        .campo{display:flex;align-items:flex-end;gap:8px;font-size:15px;margin-bottom:5mm}
+        .campo .et{font-weight:700;min-width:28mm}
+        .lin{flex:1;border-bottom:1px solid #1a2b34;height:1px}
+        .firma{display:flex;align-items:flex-end;gap:12px;font-size:15px;margin-top:auto}
+        .firma .et{font-weight:700}
+        .firma .lin{flex:0 0 80mm}
+        .ayuda{font-size:12px;color:#555;text-align:center;padding:8px}
+        @media print{.ayuda{display:none}}
+      </style></head><body>
+      <div class="ayuda">Hoja A4 con 3 comprobantes. Para imprimir más hojas, elegí la cantidad de copias en el cuadro de impresión.</div>
+      <div class="hoja">${uno}${uno}${uno}</div>
+      <script>window.onload=function(){window.print();}<\/script>
+      </body></html>`;
+    const w=window.open('','_blank');
+    if(!w){ alert('Habilitá las ventanas emergentes para imprimir los vales en blanco.'); return; }
+    w.document.write(html); w.document.close();
+  }
+  function imprimirVale(empId,itemId){
+    const e=emp(empId);
+    const x=(db.prestamos[empId]||[]).find(i=>i.id===itemId); if(!x)return;
+    const monto=x.saldo;
+    const hoy=new Date();
+    const fecha=`${String(hoy.getDate()).padStart(2,'0')}/${String(hoy.getMonth()+1).padStart(2,'0')}/${hoy.getFullYear()}`;
+    const tipoTit = x.tipo==='vale' ? 'VALE COMO ADELANTO DE SUELDO' : 'COMPROBANTE DE PRÉSTAMO';
+    const letras = numeroALetras(monto);
+    const html=`<!DOCTYPE html><html lang="es-AR"><head><meta charset="UTF-8"><title>Vale ${e.apellido}</title>
+      <style>
+        body{font-family:Arial,Helvetica,sans-serif;color:#1a2b34;margin:0;padding:30px}
+        .vale{border:2px solid #1a2b34;border-radius:6px;padding:28px 32px;max-width:640px;margin:0 auto}
+        .vale-tit{text-align:center;font-weight:700;font-size:16px;letter-spacing:.5px;margin-bottom:24px}
+        .fila{display:flex;justify-content:flex-end;margin-bottom:22px}
+        .fecha-box{border:1px solid #1a2b34;border-radius:4px;padding:6px 14px;font-weight:600;min-width:120px;text-align:center}
+        .campo{margin-bottom:22px;font-size:15px}
+        .campo .et{font-weight:700;display:inline-block;min-width:90px}
+        .campo .val{border-bottom:1px solid #999;padding:0 8px}
+        .firma{margin-top:48px;font-size:15px}
+        .firma .et{font-weight:700;margin-right:12px}
+        .firma .lin{display:inline-block;border-bottom:1px solid #1a2b34;min-width:280px;height:1px;vertical-align:bottom}
+        @media print{@page{margin:16mm}}
+      </style></head><body>
+      <div class="vale">
+        <div class="vale-tit">${tipoTit}</div>
+        <div class="fila"><div>Fecha&nbsp; <span class="fecha-box">${fecha}</span></div></div>
+        <div class="campo"><span class="et">Empleado:</span> <span class="val">${e.apellido}</span></div>
+        <div class="campo"><span class="et">En números:</span> <span class="val">${money0(monto)}</span></div>
+        <div class="campo"><span class="et">En letras:</span> <span class="val">${letras.charAt(0).toUpperCase()+letras.slice(1)}</span></div>
+        <div class="firma"><span class="et">FIRMA</span><span class="lin"></span></div>
+      </div>
+      <script>window.onload=function(){window.print();}<\/script>
+      </body></html>`;
+    const w=window.open('','_blank');
+    if(!w){ alert('Habilitá las ventanas emergentes para imprimir el vale.'); return; }
+    w.document.write(html); w.document.close();
+  }
+
+  // Devuelve el descuento pendiente sugerido para un empleado (para la carga de quincena)
+  function pendientesDe(empId){
+    const items=(db.prestamos[empId]||[]).filter(x=>!x.saldado);
+    let vale=0, prestamo=0;
+    items.forEach(x=>{ if(x.tipo==='vale') vale+=x.saldo; else prestamo+=x.saldo; });
+    return { vale, prestamo, items };
+  }
+
+  // ---------- Pantalla: Totales (panel anual + buscador) ----------
+  let totAnio=null, busEmp=null, busPeriodo=null;
+  function vistaTotales(){
+    const anios=[...new Set(Object.keys(db.periodos).map(k=>k.split('-')[0]))].sort();
+    if(anios.length===0){
+      return `<div class="card"><div class="card-cuerpo"><div class="vacio"><div class="ico">📊</div>
+        Todavía no hay quincenas cargadas.<br>Acá vas a ver los totales del año y un buscador cuando cargues datos.</div></div></div>`;
+    }
+    if(!totAnio) totAnio=anios[anios.length-1];
+    const A=totAnio;
+    const selAnio=`<select onchange="App.setTotAnio(this.value)" style="width:auto">${anios.map(a=>`<option ${a===A?'selected':''}>${a}</option>`).join('')}</select>`;
+
+    // --- Panel anual: por quincenal (negro bruto = subtotal Parte B antes de descuentos; blanco = suma netos) ---
+    // SAC: mejor mes de cada semestre /2 (1ª cuota ene-jun, 2ª jul-dic), sumo las dos cuotas del año.
+    function sacAnualQuincenal(empId){
+      const e=emp(empId);
+      // armar datos[mes][q]=baseSac para el año
+      const dd={};
+      Object.keys(db.periodos).forEach(clave=>{
+        const [anio,mes,q]=clave.split('-');
+        if(anio!==A) return;
+        const p=db.periodos[clave]; const d=p.datos[empId]; if(!d) return;
+        const r=calcularEmpleado(e,Object.assign({},d,{diasLaborables:p.diasLaborables}));
+        dd[parseInt(mes)]=dd[parseInt(mes)]||{}; dd[parseInt(mes)][parseInt(q)]=r.baseSac;
+      });
+      const c1=mejorMesDe(dd,[1,2,3,4,5,6]).mejor/2;
+      const c2=mejorMesDe(dd,[7,8,9,10,11,12]).mejor/2;
+      return c1+c2;
+    }
+    // SAC blanco anual (para todos): mejor bruto de cada semestre /2, sumo las dos cuotas.
+    function sacBlancoAnual(claveEmp,tipo){
+      function mejorSem(meses){
+        let mejor=0;
+        meses.forEach(m=>{
+          const clave=`${A}-${String(m).padStart(2,'0')}`;
+          let bruto=0;
+          if(tipo==='quincenal'){
+            [1,2].forEach(q=>{ const pk=`${clave}-${q}`; const p=db.periodos[pk]; if(p&&p.datos[claveEmp]) bruto+=parseFloat(p.datos[claveEmp].sueldoBruto)||0; });
+          } else {
+            const reg=(db.sacBlanco[clave]||{})[claveEmp]; if(reg) bruto+=parseFloat(reg.bruto)||0;
+          }
+          // sumar prorrateo de vacaciones del mes si hubiera
+          const rv=(db.sacBlanco[clave]||{})[claveEmp];
+          if(rv&&rv.vac&&rv.vac.monto>0&&rv.vac.desde&&rv.vac.hasta){
+            const tot=diasTotales(rv.vac.desde,rv.vac.hasta);
+            if(tot>0){ const dias=diasEnMes(rv.vac.desde,rv.vac.hasta,parseInt(A),m); if(dias>0) bruto+=(parseFloat(rv.vac.monto)||0)*(dias/tot); }
+          }
+          if(bruto>mejor) mejor=bruto;
+        });
+        return mejor;
+      }
+      return mejorSem([1,2,3,4,5,6])/2 + mejorSem([7,8,9,10,11,12])/2;
+    }
+
+    // Filas quincenales
+    let tN=0,tB=0,tS=0;
+    const filasQ=db.empleados.map(e=>{
+      let negro=0, blanco=0;
+      Object.keys(db.periodos).forEach(clave=>{
+        const [anio]=clave.split('-'); if(anio!==A) return;
+        const p=db.periodos[clave]; const d=p.datos[e.id]; if(!d) return;
+        const r=calcularEmpleado(e,Object.assign({},d,{diasLaborables:p.diasLaborables}));
+        negro+=r.subtotal;  // Parte B ANTES de descuentos (bruto negro)
+        blanco+=(parseFloat(d.sueldoBlanco)||0);
+      });
+      // sumar netos de recibos de vacaciones del año
+      Object.keys(db.sacBlanco).forEach(k=>{
+        if(k[0]==='_'||k.split('-')[0]!==A) return;
+        const rv=(db.sacBlanco[k]||{})[e.id];
+        if(rv&&rv.vac&&rv.vac.neto>0) blanco+=parseFloat(rv.vac.neto)||0;
+      });
+      const sac=sacBlancoAnual(e.id,'quincenal');
+      const sacNegro=sacAnualQuincenal(e.id);
+      tN+=negro; tB+=blanco; tS+=sac;
+      return `<tr><td>${e.apellido}</td>
+        <td style="text-align:right">${negro?money0(negro):'—'}</td>
+        <td style="text-align:right">${blanco?money0(blanco):'—'}</td>
+        <td style="text-align:right">${sacNegro?money0(sacNegro):'—'}</td>
+        <td style="text-align:right">${sac?money0(sac):'—'}</td></tr>`;
+    }).join('');
+
+    // Filas administrativos (solo blanco y SAC blanco; no tienen Parte B en la app)
+    const filasA=(db.admin||[]).map(a=>{
+      const claveEmp='admin:'+a.nombre;
+      let blanco=0;
+      Object.keys(db.sacBlanco).forEach(k=>{
+        if(k[0]==='_'||k.split('-')[0]!==A) return;
+        const reg=(db.sacBlanco[k]||{})[claveEmp];
+        if(reg){ blanco+=parseFloat(reg.neto)||0; if(reg.vac&&reg.vac.neto>0) blanco+=parseFloat(reg.vac.neto)||0; }
+      });
+      const sac=a.gerente?0:sacBlancoAnual(claveEmp,'admin');
+      return `<tr><td>${a.nombre}${a.gerente?' <span style="font-size:10px;color:#8a7d63">(gerente)</span>':''}</td>
+        <td style="text-align:right;color:#bbb">—</td>
+        <td style="text-align:right">${blanco?money0(blanco):'—'}</td>
+        <td style="text-align:right;color:#bbb">—</td>
+        <td style="text-align:right">${sac?money0(sac):'—'}</td></tr>`;
+    }).join('');
+
+    // --- Buscador ---
+    const clavesPer=Object.keys(db.periodos).sort().reverse();
+    const optsEmp=db.empleados.map(e=>`<option value="${e.id}" ${busEmp===e.id?'selected':''}>${e.apellido}</option>`).join('');
+    const optsPer=clavesPer.map(k=>`<option value="${k}" ${busPeriodo===k?'selected':''}>${db.periodos[k].etiqueta}</option>`).join('');
+    let resultadoBusqueda='';
+    if(busEmp && busPeriodo && db.periodos[busPeriodo] && db.periodos[busPeriodo].datos[busEmp]){
+      const e=emp(busEmp); const p=db.periodos[busPeriodo];
+      const d=Object.assign({},p.datos[busEmp],{diasLaborables:p.diasLaborables});
+      const r=calcularEmpleado(e,d);
+      const desc=r.descuentoVale+r.descuentoPrestamo;
+      resultadoBusqueda=`
+      <div style="margin-top:12px;padding:12px 14px;background:var(--panel-2);border-radius:8px">
+        <div style="font-weight:600;margin-bottom:8px">${e.apellido} — ${p.etiqueta}</div>
+        <table style="font-size:13px">
+          <tr><td>Horas extras</td><td style="text-align:right">${money(r.hsExtrasMonto)}</td></tr>
+          <tr><td>Presentismo</td><td style="text-align:right">${money(r.presentismo)}</td></tr>
+          <tr><td>Viáticos</td><td style="text-align:right">${money(r.viaticos)}</td></tr>
+          <tr><td>Comida</td><td style="text-align:right">${money(r.comida)}</td></tr>
+          ${r.plusMonto?`<tr><td>Plus/Extra</td><td style="text-align:right">${money(r.plusMonto)}</td></tr>`:''}
+          ${r.totalVacaciones?`<tr><td>Vacaciones</td><td style="text-align:right">${money(r.totalVacaciones)}</td></tr>`:''}
+          <tr style="border-top:1px solid var(--linea)"><td>Subtotal (negro)</td><td style="text-align:right">${money(r.subtotal)}</td></tr>
+          ${desc?`<tr><td style="color:var(--rojo)">Descontado</td><td style="text-align:right;color:var(--rojo)">-${money(desc)}</td></tr>`:''}
+          <tr style="font-weight:700;border-top:1px solid var(--tinta)"><td>Cobró (efectivo)</td><td style="text-align:right">${money(r.total)}</td></tr>
+          <tr><td>Sueldo blanco (banco)</td><td style="text-align:right">${money(parseFloat(p.datos[busEmp].sueldoBlanco)||0)}</td></tr>
+        </table>
+      </div>`;
+    } else if(busEmp && busPeriodo){
+      resultadoBusqueda=`<div style="margin-top:12px;color:#8a7d63;font-size:13px">No hay datos cargados de ese empleado en esa quincena.</div>`;
+    }
+
+    return `
+    <div class="card">
+      <div class="card-cab"><h2>Totales del año</h2>
+        <div style="margin-left:auto" class="no-print">${selAnio}</div></div>
+      <div class="card-cuerpo" style="padding:0">
+        <div class="aviso" style="margin:10px 12px">Acumulado del año. El <strong>negro</strong> de los quincenales es la Parte B <strong>antes de descuentos</strong>. Los administrativos solo tienen blanco y SAC blanco (no cargan Parte B acá).</div>
+        <table>
+          <thead><tr><th>Empleado</th><th style="text-align:right">Negro (Parte B)</th><th style="text-align:right">Blanco (banco)</th><th style="text-align:right">SAC negro</th><th style="text-align:right">SAC blanco</th></tr></thead>
+          <tbody>
+            ${filasQ}
+            <tr class="t-total"><td>Subtotal quincenales</td><td style="text-align:right">${money0(tN)}</td><td style="text-align:right">${money0(tB)}</td><td></td><td></td></tr>
+            ${filasA?`<tr><td colspan="5" style="padding-top:10px;font-weight:600;color:var(--tinta-2);font-size:12px">ADMINISTRACIÓN</td></tr>${filasA}`:''}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card no-print">
+      <div class="card-cab"><h2 style="font-size:15px">Buscador — ¿cuánto cobró?</h2></div>
+      <div class="card-cuerpo">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+          <select onchange="App.setBusEmp(this.value)" style="width:auto"><option value="">Elegí empleado…</option>${optsEmp}</select>
+          <select onchange="App.setBusPeriodo(this.value)" style="width:auto"><option value="">Elegí quincena…</option>${optsPer}</select>
+        </div>
+        ${resultadoBusqueda}
+      </div>
+    </div>`;
+  }
+  function setTotAnio(v){ totAnio=v; irA('totales'); }
+  function setBusEmp(v){ busEmp=v||null; irA('totales'); }
+  function setBusPeriodo(v){ busPeriodo=v||null; irA('totales'); }
+
+  // ---------- Pantalla: Ajustes ----------
+  function vistaAjustes(){
+    const filas=db.empleados.map(e=>`
+      <tr>
+        <td>${e.apellido}</td>
+        <td><input type="number" step="0.01" value="${e.valorHora}" onchange="App.setEmp('${e.id}','valorHora',this.value)" style="width:110px"></td>
+        <td><input type="number" step="0.01" value="${e.viatico}" onchange="App.setEmp('${e.id}','viatico',this.value)" style="width:100px"></td>
+        <td><input type="number" step="0.01" value="${e.adelantoFutAum}" onchange="App.setEmp('${e.id}','adelantoFutAum',this.value)" style="width:100px"></td>
+      </tr>`).join('');
+    return `
+    <div class="card">
+      <div class="card-cab"><h2>Ajustes</h2><span class="sub">Valores base (se aplican a las próximas quincenas)</span></div>
+      <div class="card-cuerpo">
+        <div class="aviso">Editá acá cuando haya aumentos de convenio o de colectivo. Los cambios no tocan las quincenas ya guardadas, solo las que cargues de ahora en más.</div>
+        <div class="campo" style="max-width:200px;margin-bottom:16px">
+          <label>Comida por día (todos)</label>
+          <input type="number" value="${db.config.comidaPorDia}" onchange="App.setComida(this.value)">
+        </div>
+        <table>
+          <thead><tr><th>Empleado</th><th>Valor hora</th><th>Viático/día</th><th>Adelanto fut.</th></tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-cab"><h2>Datos en OneDrive</h2><span class="sub">Dónde viven los datos de esta versión</span></div>
+      <div class="card-cuerpo">
+        <div class="aviso">Los datos se guardan en tu OneDrive, en <strong>EG Apps / Quincenas / quincenas.json</strong>. Antes de cada cambio se guarda una copia con fecha en la carpeta <strong>Respaldos</strong> (se conservan las últimas ${MAX_RESPALDOS}). Para entrar hay que iniciar sesión con la cuenta de EG.</div>
+        <div class="btn-fila" style="margin-top:0">
+          <button class="btn sec" onclick="App.traerDesdeGoogle()">⬇ Traer datos desde Google</button>
+          <button class="btn sec" onclick="App.compararConGoogle()">🔍 Comparar con Google</button>
+          <button class="btn sec" onclick="App.cerrarSesion()">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-cab"><h2>Copia de seguridad</h2><span class="sub">Guardá y restaurá todos los datos</span></div>
+      <div class="card-cuerpo">
+        <div class="aviso">Además de OneDrive, bajá una copia cada tanto y guardala fuera de la computadora (sobre todo por el historial que alimenta el SAC).</div>
+        <div class="btn-fila" style="margin-top:0">
+          <button class="btn" onclick="App.backup()">⬇ Bajar copia de seguridad</button>
+          <label class="btn sec" style="display:inline-flex;align-items:center;cursor:pointer">⬆ Restaurar desde archivo
+            <input type="file" accept="application/json" style="display:none" onchange="App.restaurar(this)">
+          </label>
+        </div>
+      </div>
+    </div>`;
+  }
+  function setEmp(id,campo,val){ emp(id)[campo]=parseFloat(val)||0; guardar(); }
+  function setComida(val){ db.config.comidaPorDia=parseFloat(val)||0; guardar(); }
+
+  // ---------- Períodos ----------
+  function cambiarPeriodo(k){ periodoActivo=k; empActivo=null; irA(tabActiva); }
+  function nuevoPeriodo(){
+    const hoy=new Date();
+    const anio=prompt('Año:',hoy.getFullYear()); if(!anio)return;
+    const mes=prompt('Mes (1-12):',hoy.getMonth()+1); if(!mes)return;
+    const q=prompt('Quincena (1 ó 2):','1'); if(!q)return;
+    const clave=claveNueva(anio,mes,q);
+    if(db.periodos[clave]){
+      if(!confirm('Ese período ya existe. ¿Abrirlo?')) return;
+    }else{
+      // Duplicar de la quincena anterior el bruto y los días laborables.
+      // El valor hora y el viático NO se copian: salen siempre de Ajustes, para que
+      // un aumento cargado ahí entre en las quincenas nuevas (antes se arrastraba el
+      // valor viejo de quincena en quincena y el aumento no entraba nunca).
+      const anterior = db.periodos[periodoActivo];
+      const nuevoDatos={};
+      let dias=12;
+      if(anterior){
+        dias=anterior.diasLaborables||12;
+        Object.keys(anterior.datos||{}).forEach(id=>{
+          const d=anterior.datos[id];
+          // arrastra los valores estables, deja en blanco lo que cambia cada quincena
+          nuevoDatos[id]={ sueldoBruto:d.sueldoBruto,
+            diasVino:'', hsExtras:'', descuentoVale:0, descuentoPrestamo:0 };
+        });
+      }
+      db.periodos[clave]={etiqueta:etiquetaPeriodo(+anio,+mes,+q),diasLaborables:dias,datos:{}};
+      // guardamos los valores arrastrados como "prefill" para que aparezcan al abrir cada ficha
+      db.periodos[clave]._prefill = nuevoDatos;
+    }
+    periodoActivo=clave; empActivo=null; guardar(); renderPeriodos(); irA('carga');   // la pantalla principal de carga
+  }
+
+  // ---------- Backup / Restaurar ----------
+  function backup(){
+    const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const hoy=new Date().toISOString().slice(0,10);
+    a.href=url; a.download=`quincenas-backup-${hoy}.json`; a.click();
+    URL.revokeObjectURL(url);
+    toast('Copia de seguridad descargada');
+  }
+  function restaurar(input){
+    const file=input.files[0]; if(!file)return;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      try{
+        const data=JSON.parse(rd.result);
+        if(!data.empleados||!data.periodos) throw new Error('El archivo no tiene el formato esperado');
+        const q=Object.keys(data.periodos||{}).length, e=(data.empleados||[]).length;
+        if(!confirm('El archivo trae '+q+' quincenas y '+e+' empleados.\n\nEsto reemplaza los datos actuales y los ESCRIBE en tu OneDrive.\n\n¿Continuar?')) return;
+        nubeLeida = true;   // acción explícita de Raquel: recién acá se habilita escribir
+        db=data; guardar(); periodoActivo=Object.keys(db.periodos).sort().reverse()[0];
+        empActivo=null; renderPeriodos(); irA('inicio'); toast('Datos restaurados');
+      }catch(err){ alert('No se pudo restaurar: '+err.message); }
+    };
+    rd.readAsText(file);
+  }
+
+  return { init, irA, calc,
+           iniciarSesion, cerrarSesion, traerDesdeGoogle, compararConGoogle,
+           selEmpCarga, setDiasLabCarga, calcCarga, toggleVacCarga, guardarCarga, corregirItemCarga, confirmarDescuentoCarga, focoDescuentoCarga,
+           setDescuentoCarga, imprimirCarga, cambiarPeriodo, nuevoPeriodo, setEmp, setComida,
+           setReciboAdmin, reciboVac, quitarVac, setMesAdminRecibos,
+           toggleVac,
+           imprimirUno, backup, restaurar, setPorHoja,
+           nuevoItem, borrarItem, imprimirVale, imprimirValesEnBlanco,
+           setSacAnio, setSacCuota, verSacEmp,
+           setAdminMes, setAjusteSac, vacSb, setSbAnio, setSbCuota,
+           setTotAnio, setBusEmp, setBusPeriodo,
+           nuevoAdmin, borrarAdmin };
+})();
+document.addEventListener('DOMContentLoaded', App.init);
+</script>
+</body>
+</html>
