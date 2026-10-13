@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <!--
   EG Quincenas — Parte B de sueldos · E.G. Corrugados
+  Los datos viven en el OneDrive de EG y para entrar hay que iniciar sesión.
+  No hay ninguna dirección de datos dentro del código.
   Aplicación hecha por Raquel Cacavelos.
 
   En memoria de mi papá, Gerardo, analista programador,
@@ -11,6 +13,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Quincenas · EG Corrugados</title>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.28.1/lib/msal-browser.min.js"
+        integrity="sha384-B5PXeUfgiegchZiX5iMRssMrHd9NfPhFnITob1HyW1CY76udptWpBsniaDsH/+BY"
+        crossorigin="anonymous"></script>
 <style>
 :root{
   --tinta:#1a2b34;        /* azul pizarra oscuro */
@@ -254,7 +259,7 @@ footer.firma strong{ color:var(--tinta); font-weight:600; }
     <div class="hd-logo">EG</div>
     <div>
       <div class="hd-tit">Quincenas · Parte B</div>
-      <div class="hd-sub">EG Corrugados <span id="syncBadge" style="font-size:11px;margin-left:6px;color:#8a7d63">💾 Local</span><span id="espacioBadge" style="font-size:11px"></span></div>
+      <div class="hd-sub">EG Corrugados <span id="syncBadge" style="font-size:11px;margin-left:6px;color:#8a7d63">💾 Local</span><span id="usuarioBadge" style="font-size:11px;margin-left:8px;color:#8a7d63"></span></div>
     </div>
     <div class="hd-per">
       <select id="selPeriodo" onchange="App.cambiarPeriodo(this.value)"></select>
@@ -396,10 +401,16 @@ function num(x){ const n = parseFloat(x); return isNaN(n) ? 0 : n; }
 
 
 const App = (function(){
-  const LS = 'eg_quincenas_v1';
-  // URL del Apps Script (/exec). Si queda vacía, la app funciona solo local (localStorage).
-  // Claude Code la completa al publicar el Apps Script.
-  const URL_SHEET = 'https://script.google.com/macros/s/AKfycbyjVNhyxuQ4sNcFBW4vEBy4sIQuAkc8RaHUS4j1kA9SDv3Zolr4LDJwiJVI3HA9M-dyvQ/exec';
+  // Esta versión guarda los datos en el OneDrive de EG, no en Google Sheets.
+  // Clave propia de caché local, para no mezclarse con la versión que usa la planilla.
+  const LS = 'eg_quincenas_365';
+  const MS_CLIENTE   = '4dfd2f42-3c4e-4071-b364-1747688ef8da';
+  const MS_INQUILINO = 'f943f6a4-62dd-4a9b-ba93-c2640a30c7cf';
+  const MS_PERMISOS  = ['User.Read','Files.ReadWrite.All'];
+  const GRAPH        = 'https://graph.microsoft.com/v1.0';
+  const RUTA_DATOS     = '/EG Apps/Quincenas/quincenas.json';
+  const RUTA_RESPALDOS = '/EG Apps/Quincenas/Respaldos';
+  const MAX_RESPALDOS  = 100;
   const ADMIN_BASE = [
     { nombre: 'Bianchini Emilio', gerente: false },
     { nombre: 'Fotini Alejandro', gerente: false },
@@ -441,12 +452,21 @@ const App = (function(){
   function guardar(){
     try{ localStorage.setItem(LS, JSON.stringify(db)); }
     catch(e){ alert('No se pudo guardar: '+e.message); }
-    // Además, sincronizar con la nube (Google Sheets) si está configurada.
+    // Además, guardar en OneDrive (con debounce y todas las protecciones).
     guardarEnNube();
   }
 
-  // ---------- Sincronización con Google Sheets ----------
-  function nubeActiva(){ return URL_SHEET && URL_SHEET.indexOf('http')===0; }
+  // ============================================================
+  //  Datos en OneDrive (Microsoft 365), con inicio de sesión.
+  //  Mantiene TODAS las protecciones de la versión anterior:
+  //   · nubeLeida: no se escribe NUNCA si antes no se pudo leer.
+  //   · Archivo inexistente NO significa "base vacía": no se escribe nada
+  //     hasta que Raquel elija explícitamente traer o importar los datos.
+  //   · Error, archivo corrupto, archivo vacío o falta de sesión = falla.
+  //   · Antes de sobrescribir se guarda una copia con fecha en Respaldos.
+  // ============================================================
+  let msalApp=null, cuentaMS=null, eTagActual=null, contenidoNube=null;
+  let estadoNube='', ultimoError='';
 
   function marcarSync(estado){
     syncEstado = estado;
@@ -460,63 +480,181 @@ const App = (function(){
     };
     const m = map[estado]||map.local;
     b.textContent = m.t; b.style.color = m.c;
-    // Aviso de espacio discreto, en un span aparte al lado del badge.
-    const se = document.getElementById('espacioBadge');
-    if(se) se.innerHTML = avisoEspacioChico();
+  }
+  function mostrarUsuario(){
+    const u=document.getElementById('usuarioBadge'); if(!u) return;
+    u.textContent = cuentaMS ? ('· ' + (cuentaMS.username || cuentaMS.name || '')) : '';
   }
 
-  // Guarda el db completo en el Sheet (no bloquea la interfaz).
+  // ---------- Inicio de sesión ----------
+  function uriDeRetorno(){ return (location.origin + location.pathname).replace(/index\.html$/,''); }
+  async function iniciarAuth(){
+    if(typeof msal === 'undefined'){ estadoNube='sin-msal'; return false; }
+    if(!msalApp){
+      msalApp = new msal.PublicClientApplication({
+        auth:{ clientId:MS_CLIENTE, authority:'https://login.microsoftonline.com/'+MS_INQUILINO, redirectUri:uriDeRetorno() },
+        cache:{ cacheLocation:'localStorage' }
+      });
+      await msalApp.initialize();
+    }
+    try{ const r = await msalApp.handleRedirectPromise(); if(r && r.account) cuentaMS = r.account; }catch(e){ ultimoError = e.message; }
+    if(!cuentaMS){ const cs = msalApp.getAllAccounts(); if(cs && cs.length) cuentaMS = cs[0]; }
+    if(cuentaMS) msalApp.setActiveAccount(cuentaMS);
+    return !!cuentaMS;
+  }
+  async function iniciarSesion(){
+    if(!msalApp){ await iniciarAuth(); }
+    if(!msalApp){ alert('No se pudo cargar el inicio de sesión de Microsoft. Revisá la conexión a internet y volvé a cargar la página.'); return; }
+    try{ await msalApp.loginRedirect({ scopes: MS_PERMISOS }); }
+    catch(e){ alert('No se pudo iniciar sesión: ' + e.message); }
+  }
+  async function cerrarSesion(){
+    if(!msalApp) return;
+    if(!confirm('¿Cerrar la sesión de Microsoft?\n\nLos datos quedan guardados en OneDrive. Para volver a verlos vas a tener que iniciar sesión de nuevo.')) return;
+    await msalApp.logoutRedirect({ account: cuentaMS });
+  }
+  // Devuelve el token o null. Nunca abre una ventana de login por su cuenta:
+  // si no hay token, la app queda en modo solo lectura y no escribe nada.
+  async function obtenerToken(){
+    if(!msalApp || !cuentaMS) return null;
+    try{ const r = await msalApp.acquireTokenSilent({ scopes: MS_PERMISOS, account: cuentaMS }); return r.accessToken; }
+    catch(e){ ultimoError = e.message; return null; }
+  }
+
+  // ---------- OneDrive ----------
+  function rutaApi(ruta){ return GRAPH + '/me/drive/root:' + ruta.split('/').map(encodeURIComponent).join('/'); }
+  function graph(token, url, opciones){
+    const o = Object.assign({}, opciones||{});
+    o.headers = Object.assign({ Authorization:'Bearer '+token }, o.headers||{});
+    return fetch(url, o);
+  }
+  async function asegurarCarpetas(token){
+    const partes = RUTA_RESPALDOS.split('/').filter(Boolean);
+    let acum='';
+    for(const nombre of partes){
+      const padre = acum==='' ? (GRAPH+'/me/drive/root/children') : (rutaApi(acum)+':/children');
+      try{
+        await graph(token, padre, { method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ name:nombre, folder:{}, '@microsoft.graph.conflictBehavior':'fail' }) });
+      }catch(e){ /* si ya existe, Graph responde 409 y seguimos */ }
+      acum = acum + '/' + nombre;
+    }
+  }
+
+  // Trae el db de OneDrive al abrir. Si no se puede leer, NO se habilita escribir.
+  function cargarDeNube(cb){
+    marcarSync('sincronizando');
+    (async function(){
+      try{
+        const token = await obtenerToken();
+        if(!token){ estadoNube='sin-sesion'; marcarSync('error'); if(cb)cb(); return; }
+        const meta = await graph(token, rutaApi(RUTA_DATOS));
+        if(meta.status===404){ estadoNube='sin-archivo'; marcarSync('error'); if(cb)cb(); return; }
+        if(!meta.ok) throw new Error('HTTP '+meta.status+' al buscar el archivo');
+        const info = await meta.json();
+        eTagActual = info.eTag || null;
+        const r = await graph(token, rutaApi(RUTA_DATOS)+':/content');
+        if(!r.ok) throw new Error('HTTP '+r.status+' al leer el archivo');
+        const txt = await r.text();
+        if(!txt || !txt.trim().length) throw new Error('el archivo está vacío');
+        const dNube = JSON.parse(txt);
+        if(!dNube || typeof dNube!=='object' || !dNube.periodos || !dNube.empleados) throw new Error('el archivo no tiene el formato esperado');
+        if(!dNube.sacBlanco) dNube.sacBlanco={};
+        if(!dNube.admin || dNube.admin.length===0) dNube.admin=JSON.parse(JSON.stringify(ADMIN_BASE));
+        db = dNube;
+        contenidoNube = JSON.stringify(db);
+        localStorage.setItem(LS, contenidoNube);
+        nubeLeida = true; estadoNube='ok'; marcarSync('ok');
+      }catch(e){
+        estadoNube='error'; ultimoError=e.message; marcarSync('error');
+      }
+      if(cb)cb();
+    })();
+  }
+
+  // Guarda el db completo en OneDrive (no bloquea la interfaz).
   let guardarTimer=null;
   function guardarEnNube(){
-    if(!nubeActiva()) return;
-    // Salvaguarda: si la lectura inicial fallo, no sabemos que hay en la planilla.
-    // Escribir aca seria pisar datos buenos con una memoria vacia.
-    if(!nubeLeida){ marcarSync("error"); return; }
-    // "debounce": si se guarda varias veces seguidas, manda una sola vez al final.
+    if(!nubeLeida){ marcarSync('error'); return; }
     if(guardarTimer) clearTimeout(guardarTimer);
-    guardarTimer=setTimeout(()=>{
-      marcarSync('sincronizando');
-      fetch(URL_SHEET, {
-        method:'POST',
-        // text/plain evita el preflight CORS de Apps Script
-        headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify({ action:'save', db: JSON.stringify(db) })
-      })
-      .then(r=>r.json())
-      .then(j=>{ marcarSync(j&&j.ok?'ok':'error'); })
-      .catch(()=>{ marcarSync('error'); });
-    }, 800);
+    guardarTimer=setTimeout(function(){ escribirEnNube(); }, 800);
+  }
+  async function escribirEnNube(){
+    if(!nubeLeida){ marcarSync('error'); return; }
+    const nuevo = JSON.stringify(db);
+    if(nuevo === contenidoNube){ marcarSync('ok'); return; }   // nada cambió: ni respaldo ni escritura
+    marcarSync('sincronizando');
+    try{
+      const token = await obtenerToken();
+      if(!token) throw new Error('no hay sesión');
+      await asegurarCarpetas(token);
+      if(contenidoNube) await respaldar(token, contenidoNube);
+      const headers = {'Content-Type':'application/json'};
+      if(eTagActual) headers['If-Match'] = eTagActual;
+      const r = await graph(token, rutaApi(RUTA_DATOS)+':/content', { method:'PUT', headers:headers, body:nuevo });
+      if(r.status===412 || r.status===409){
+        nubeLeida=false; estadoNube='conflicto'; marcarSync('error');
+        alert('El archivo de OneDrive cambió desde otro lado.\n\nPara no pisar nada, la app dejó de guardar. Volvé a cargar la página (F5) para traer la versión nueva.');
+        return;
+      }
+      if(!r.ok) throw new Error('HTTP '+r.status+' al guardar');
+      const info = await r.json();
+      eTagActual = info.eTag || null;
+      contenidoNube = nuevo;
+      estadoNube='ok'; marcarSync('ok');
+    }catch(e){ estadoNube='error'; ultimoError=e.message; marcarSync('error'); }
+  }
+  // Copia del contenido anterior, con fecha y hora, antes de sobrescribir.
+  async function respaldar(token, contenidoAnterior){
+    const d=new Date(), p=function(n){ return String(n).padStart(2,'0'); };
+    const nombre = 'quincenas-'+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+
+                   '_'+p(d.getHours())+'-'+p(d.getMinutes())+'-'+p(d.getSeconds())+'.json';
+    await graph(token, rutaApi(RUTA_RESPALDOS+'/'+nombre)+':/content',
+      { method:'PUT', headers:{'Content-Type':'application/json'}, body:contenidoAnterior });
+    // Dejar solo los últimos MAX_RESPALDOS (los nombres ordenan por fecha).
+    const r = await graph(token, rutaApi(RUTA_RESPALDOS)+':/children?$select=id,name&$top=400');
+    if(!r.ok) return;
+    const j = await r.json();
+    const archivos = (j.value||[]).filter(function(x){ return /^quincenas-.*\.json$/.test(x.name); })
+                                  .sort(function(a,b){ return a.name<b.name?1:-1; });
+    for(let i=MAX_RESPALDOS; i<archivos.length; i++){
+      await graph(token, GRAPH+'/me/drive/items/'+archivos[i].id, { method:'DELETE' });
+    }
   }
 
-  // Trae el db del Sheet al abrir. Si hay datos en la nube, reemplazan lo local.
-  function cargarDeNube(cb){
-    if(!nubeActiva()){ marcarSync('local'); if(cb)cb(); return; }
-    marcarSync('sincronizando');
-    fetch(URL_SHEET, { method:'GET' })
-      .then(r=>r.json())
-      .then(j=>{
-        // Si la respuesta no es un ok limpio, es una lectura fallida: no marcamos
-        // nubeLeida, asi guardarEnNube() se niega a escribir y no pisa nada.
-        if(!(j && j.ok)){ marcarSync('error'); if(cb)cb(); return; }
-        if(j.db && String(j.db).trim().length){
-          try{
-            const dNube = JSON.parse(j.db);
-            if(!dNube || typeof dNube!=='object') throw new Error('formato invalido');
-            if(!dNube.sacBlanco) dNube.sacBlanco={};
-            if(!dNube.admin || dNube.admin.length===0) dNube.admin=JSON.parse(JSON.stringify(ADMIN_BASE));
-            db = dNube;
-            localStorage.setItem(LS, JSON.stringify(db));
-          }catch(e){
-            // El texto de A1 esta corrupto o incompleto. Mejor no tocar nada.
-            marcarSync('error'); if(cb)cb(); return;
-          }
-        }
-        // Lectura confirmada (con datos, o planilla realmente vacia): ya se puede escribir.
-        nubeLeida = true;
-        marcarSync('ok');
-        if(cb)cb();
-      })
-      .catch(()=>{ marcarSync('error'); if(cb)cb(); });
+  // Pantalla cuando no se pudo leer (sin sesión, sin archivo, o falla).
+  function pantallaSinDatos(){
+    if(estadoNube==='sin-sesion' || estadoNube==='sin-msal'){
+      const extra = estadoNube==='sin-msal'
+        ? '<br><br>No se pudo cargar el inicio de sesión de Microsoft. Revisá la conexión a internet y volvé a cargar la página (F5).' : '';
+      return '<div class="card"><div class="card-cuerpo"><div class="aviso">' +
+        '<strong>Entrá con tu cuenta de EG Corrugados.</strong><br><br>' +
+        'Los datos de quincenas están en tu OneDrive. Para verlos hay que iniciar sesión.' + extra +
+        '</div><div class="btn-fila"><button class="btn" onclick="App.iniciarSesion()">Iniciar sesión con Microsoft</button></div>' +
+        '</div></div>';
+    }
+    if(estadoNube==='sin-archivo'){
+      return '<div class="card"><div class="card-cuerpo"><div class="aviso">' +
+        '<strong>Todavía no hay datos en OneDrive.</strong><br><br>' +
+        'No se creó ningún archivo ni se guardó nada: la app no inventa una base vacía.<br><br>' +
+        'Traé los datos desde tu copia de seguridad. Recién ahí se va a escribir en OneDrive.' +
+        '</div><div class="btn-fila">' +
+        '<label class="btn" style="display:inline-flex;align-items:center;cursor:pointer">⬆ Restaurar desde la copia de seguridad' +
+        '<input type="file" accept="application/json" style="display:none" onchange="App.restaurar(this)"></label>' +
+        '</div></div></div>';
+    }
+    if(estadoNube==='conflicto'){
+      return '<div class="card"><div class="card-cuerpo"><div class="aviso">' +
+        '<strong>El archivo de OneDrive cambió desde otro lado.</strong><br><br>' +
+        'La app dejó de guardar para no pisar nada. Volvé a cargar la página (F5).' +
+        '</div></div></div>';
+    }
+    return '<div class="card"><div class="card-cuerpo"><div class="aviso">' +
+      '<strong>No se pudieron leer los datos de OneDrive.</strong><br><br>' +
+      'La app quedó en <strong>modo solo lectura</strong>: no va a guardar nada, para no pisar los datos que ya están guardados.<br><br>' +
+      'Revisá la conexión a internet y volvé a cargar la página (F5).' +
+      (ultimoError ? '<br><br><span class="mini">Detalle: ' + ultimoError + '</span>' : '') +
+      '</div><div class="btn-fila"><button class="btn sec" onclick="location.reload()">Reintentar</button></div></div></div>';
   }
 
   // ---------- Utilidades ----------
@@ -583,24 +721,20 @@ const App = (function(){
 
   // ---------- Arranque ----------
   function init(){
-    // Primero intentamos traer los datos de la nube (Google Sheets).
-    // Si no hay nube configurada, sigue de largo con lo local.
-    cargarDeNube(function(){
-      arrancar();
-    });
+    marcarSync('sincronizando');
+    (async function(){
+      const haySesion = await iniciarAuth();
+      mostrarUsuario();
+      if(!haySesion){ if(!estadoNube) estadoNube='sin-sesion'; marcarSync('error'); arrancar(); return; }
+      cargarDeNube(function(){ arrancar(); });
+    })();
   }
   function arrancar(){
     // si no hay ningún período, crear uno por defecto (quincena actual)
-    // Si la nube esta configurada pero no se pudo leer, NO inventamos un periodo
-    // por defecto: ese fue exactamente el camino que vacio la planilla.
-    if(nubeActiva() && !nubeLeida){
-      document.getElementById('vista').innerHTML =
-        '<div class="card"><div class="card-cuerpo"><div class="aviso">' +
-        '<strong>No se pudieron leer los datos de la planilla.</strong><br><br>' +
-        'La app quedó en <strong>modo solo lectura</strong>: no va a guardar nada, ' +
-        'para no pisar los datos que ya están guardados.<br><br>' +
-        'Revisá la conexión a internet y volvé a cargar la página (F5).' +
-        '</div></div></div>';
+    // Si no se pudo leer OneDrive, NO inventamos un periodo por defecto: ese fue
+    // exactamente el camino que vacio la planilla en agosto.
+    if(!nubeLeida){
+      document.getElementById('vista').innerHTML = pantallaSinDatos();
       return;
     }
     if(Object.keys(db.periodos).length===0){
@@ -613,38 +747,6 @@ const App = (function(){
     }
     periodoActivo = periodoActivo || Object.keys(db.periodos).sort().reverse()[0];
     renderPeriodos(); renderNav(); irA('carga');   // la pantalla única es la principal
-  }
-
-  // ---------- Aviso de límite de espacio (celda de Google Sheets: 50.000 caracteres) ----------
-  const LIMITE_CELDA = 50000;   // máximo de caracteres que aguanta la celda A1
-  const CHARS_POR_QUINCENA = 1700; // estimación de cuánto suma cada quincena nueva
-  function estadoEspacio(){
-    const usado = JSON.stringify(db).length;
-    const libre = Math.max(0, LIMITE_CELDA - usado);
-    const quincenasRestantes = Math.floor(libre / CHARS_POR_QUINCENA);
-    const pct = usado / LIMITE_CELDA;
-    let nivel = 'ok';
-    if(pct >= 0.92) nivel = 'rojo';
-    else if(pct >= 0.80) nivel = 'amarillo';
-    return { usado, libre, quincenasRestantes, pct, nivel };
-  }
-  function avisoEspacioChico(){
-    // Texto discreto junto al badge, solo si ya entró en zona amarilla o roja.
-    const e = estadoEspacio();
-    if(e.nivel === 'ok') return '';
-    const color = e.nivel === 'rojo' ? '#b3402f' : '#c08a2d';
-    return ` · <span style="color:${color}">📦 espacio: ~${e.quincenasRestantes} quincenas</span>`;
-  }
-  function avisoEspacioGrande(){
-    // Cartel grande arriba de la vista, solo en zona roja (urgente).
-    const e = estadoEspacio();
-    if(e.nivel !== 'rojo') return '';
-    return `<div class="aviso no-print" style="border-color:#b3402f;background:#fff2ef;margin-bottom:12px">
-      <strong>📦 La planilla se está quedando sin espacio.</strong> Quedan aproximadamente
-      <strong>${e.quincenasRestantes} quincenas</strong> de lugar. Antes de que se llene, hay que
-      ampliar la app para que guarde los datos en varias partes (es un cambio técnico).
-      Avisá para que lo hagan con tiempo — mientras tanto la app sigue funcionando normal.
-    </div>`;
   }
 
   function renderPeriodos(){
@@ -695,12 +797,6 @@ const App = (function(){
     else if(tab==='sacblanco') v.innerHTML=vistaSacBlanco();
     else if(tab==='totales') v.innerHTML=vistaTotales();
     else if(tab==='ajustes') v.innerHTML=vistaAjustes();
-    // Aviso grande de espacio (solo en zona roja): se antepone a cualquier pestaña.
-    const ae = avisoEspacioGrande();
-    if(ae) v.innerHTML = ae + v.innerHTML;
-    // Refrescar el aviso chico de espacio junto al badge.
-    const seTab = document.getElementById('espacioBadge');
-    if(seTab) seTab.innerHTML = avisoEspacioChico();
     // Al cambiar de pestaña, subimos arriba. Si es un refresco de la misma pestaña, conservamos el scroll.
     if(cambioDeTab) window.scrollTo(0,0);
     else window.scrollTo(0,scrollPrev);
@@ -2478,9 +2574,18 @@ const App = (function(){
       </div>
     </div>
     <div class="card">
+      <div class="card-cab"><h2>Datos en OneDrive</h2><span class="sub">Dónde viven los datos de esta versión</span></div>
+      <div class="card-cuerpo">
+        <div class="aviso">Los datos se guardan en tu OneDrive, en <strong>EG Apps / Quincenas / quincenas.json</strong>. Antes de cada cambio se guarda una copia con fecha en la carpeta <strong>Respaldos</strong> (se conservan las últimas ${MAX_RESPALDOS}). Para entrar hay que iniciar sesión con la cuenta de EG.</div>
+        <div class="btn-fila" style="margin-top:0">
+          <button class="btn sec" onclick="App.cerrarSesion()">Cerrar sesión</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
       <div class="card-cab"><h2>Copia de seguridad</h2><span class="sub">Guardá y restaurá todos los datos</span></div>
       <div class="card-cuerpo">
-        <div class="aviso">Los datos viven en este navegador. Bajá una copia cada tanto (sobre todo por el historial que alimenta el SAC). Si cambiás de computadora o se borra el navegador, restaurás desde el archivo.</div>
+        <div class="aviso">Además de OneDrive, bajá una copia cada tanto y guardala fuera de la computadora (sobre todo por el historial que alimenta el SAC).</div>
         <div class="btn-fila" style="margin-top:0">
           <button class="btn" onclick="App.backup()">⬇ Bajar copia de seguridad</button>
           <label class="btn sec" style="display:inline-flex;align-items:center;cursor:pointer">⬆ Restaurar desde archivo
@@ -2544,7 +2649,9 @@ const App = (function(){
       try{
         const data=JSON.parse(rd.result);
         if(!data.empleados||!data.periodos) throw new Error('El archivo no tiene el formato esperado');
-        if(!confirm('Esto reemplaza todos los datos actuales por los del archivo. ¿Continuar?')) return;
+        const q=Object.keys(data.periodos||{}).length, e=(data.empleados||[]).length;
+        if(!confirm('El archivo trae '+q+' quincenas y '+e+' empleados.\n\nEsto reemplaza los datos actuales y los ESCRIBE en tu OneDrive.\n\n¿Continuar?')) return;
+        nubeLeida = true;   // acción explícita de Raquel: recién acá se habilita escribir
         db=data; guardar(); periodoActivo=Object.keys(db.periodos).sort().reverse()[0];
         empActivo=null; renderPeriodos(); irA('inicio'); toast('Datos restaurados');
       }catch(err){ alert('No se pudo restaurar: '+err.message); }
@@ -2553,6 +2660,7 @@ const App = (function(){
   }
 
   return { init, irA, calc,
+           iniciarSesion, cerrarSesion,
            selEmpCarga, setDiasLabCarga, calcCarga, toggleVacCarga, guardarCarga, corregirItemCarga, confirmarDescuentoCarga, focoDescuentoCarga,
            setDescuentoCarga, imprimirCarga, cambiarPeriodo, nuevoPeriodo, setEmp, setComida,
            setReciboAdmin, reciboVac, quitarVac, setMesAdminRecibos,
