@@ -262,7 +262,7 @@ footer.firma strong{ color:var(--tinta); font-weight:600; }
       <div class="hd-sub">EG Corrugados <span id="syncBadge" style="font-size:11px;margin-left:6px;color:#8a7d63">💾 Local</span><span id="usuarioBadge" style="font-size:11px;margin-left:8px;color:#8a7d63"></span></div>
     </div>
     <div class="hd-per">
-      <select id="selPeriodo" onchange="App.cambiarPeriodo(this.value)"></select>
+      <select id="selPeriodo" autocomplete="off" onchange="App.cambiarPeriodo(this.value)"></select>
       <button class="btn chico" onclick="App.nuevoPeriodo()">+ Nueva</button>
     </div>
   </div>
@@ -753,6 +753,9 @@ const App = (function(){
     const sel=document.getElementById('selPeriodo');
     const claves=Object.keys(db.periodos).sort().reverse();
     sel.innerHTML=claves.map(k=>`<option value="${k}" ${k===periodoActivo?'selected':''}>${db.periodos[k].etiqueta}</option>`).join('');
+    // Al recargar, el navegador restaura el valor que el desplegable tenia antes y pisa
+    // el que marca la app. Lo forzamos: el selector tiene que mostrar SIEMPRE la quincena activa.
+    sel.value = periodoActivo;
     // Barra grande de período activo (visible en todas las pestañas)
     const bar=document.getElementById('periodoActivoBar');
     if(bar){
@@ -783,6 +786,10 @@ const App = (function(){
   }
 
   function irA(tab){
+    // Segunda red por si el navegador restaura un valor viejo en el desplegable
+    // despues de que la app dibujo: el selector siempre tiene que decir la quincena activa.
+    const selP=document.getElementById('selPeriodo');
+    if(selP && periodoActivo && selP.value!==periodoActivo) selP.value=periodoActivo;
     // Una pestaña que ya no existe (retirada) lleva a la pantalla principal de carga.
     if(!TABS.some(function(x){ return x[0]===tab; })) tab='carga';
     const cambioDeTab = (tab!==tabActiva);
