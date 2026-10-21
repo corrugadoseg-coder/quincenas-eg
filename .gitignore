@@ -1,0 +1,9 @@
+# Datos con sueldos: NO subir a un repo publico
+*.json
+files.zip
+*.zip
+
+# Sistema viejo de Google (Apps Script e instructivos): SOLO local, no al repo publico
+Codigo.gs
+INSTRUCCIONES_BLINDAJE.md
+INSTRUCCIONES_PARA_CLAUDE_CODE.md
